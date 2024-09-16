@@ -1,0 +1,78 @@
+#include "Camera.hpp"
+
+glm::mat4 Camera::GetViewMatrix() const
+{
+    return glm::lookAt(Position, Position + Front, Up);
+}
+
+glm::mat4 Camera::GetProjectionMatrix(float aspectRatio, float nearPlane, float farPlane) const
+{
+    return glm::perspective(glm::radians(45.0f), aspectRatio, nearPlane, farPlane);
+}
+
+void Camera::ProcessKeyboard(Camera_Movement direction, float deltaTime)
+{
+    float velocity = MovementSpeed * deltaTime;
+    if (direction == FORWARD)
+        Position += Front * velocity;
+    if (direction == BACKWARD)
+        Position -= Front * velocity;
+    if (direction == LEFT)
+        Position -= Right * velocity;
+    if (direction == RIGHT)
+        Position += Right * velocity;
+    if (direction == UP)
+        Position += Up * velocity;
+    if (direction == DOWN)
+        Position -= Up * velocity;
+}
+
+void Camera::ProcessMouseMovement(float xoffset, float yoffset, bool constrainPitch)
+{
+    xoffset *= MouseSensitivity;
+    yoffset *= MouseSensitivity;
+
+    Yaw += xoffset;
+    Pitch += yoffset;
+
+    if (constrainPitch)
+    {
+        if (Pitch > 89.0f)
+            Pitch = 89.0f;
+        if (Pitch < -89.0f)
+            Pitch = -89.0f;
+    }
+
+    updateCameraVectors();
+}
+
+void Camera::updateCameraVectors()
+{
+    glm::vec3 front;
+    front.x = cos(glm::radians(Yaw)) * cos(glm::radians(Pitch));
+    front.y = sin(glm::radians(Pitch));
+    front.z = sin(glm::radians(Yaw)) * cos(glm::radians(Pitch));
+    Front = glm::normalize(front);
+    Right = glm::normalize(glm::cross(Front, WorldUp));
+    Up = glm::normalize(glm::cross(Right, Front));
+}
+
+glm::vec2 Camera::WorldToScreen(const glm::vec3 &worldPosition, const glm::mat4 &projection, const glm::mat4 &view, const glm::vec4 &viewport) const
+{
+    glm::vec4 clipSpacePosition = projection * view * glm::vec4(worldPosition, 1.0f);
+
+    // Check if the point is behind the camera
+    if (clipSpacePosition.w <= 0.0f)
+    {
+        return glm::vec2(-FLT_MAX, -FLT_MAX); // Return an invalid position
+    }
+
+    glm::vec3 ndcSpacePosition = glm::vec3(clipSpacePosition) / clipSpacePosition.w;
+
+    // Convert from NDC space to window space
+    glm::vec2 windowSpacePosition;
+    windowSpacePosition.x = viewport.x + viewport.z * (ndcSpacePosition.x + 1.0f) / 2.0f;
+    windowSpacePosition.y = viewport.y + viewport.w * (1.0f - (ndcSpacePosition.y + 1.0f) / 2.0f); // Flip Y-coordinate
+
+    return windowSpacePosition;
+}

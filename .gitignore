@@ -1,0 +1,7 @@
+bin/*/MetalRenderer
+bin/*/default.metallib
+shaders/*.ir
+
+.vscode
+build/*
+obj/*
