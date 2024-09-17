@@ -10,10 +10,12 @@
 #include "Camera.hpp"
 #include "PipelineManager.hpp"
 
+class Engine;
+
 class Renderer
 {
 public:
-    Renderer(SDL_MetalView metalView);
+    Renderer(SDL_MetalView metalView, Engine* engine);
     ~Renderer();
 
     void render(Camera& camera, class ImGuiHandler& imguiHandler);
@@ -23,6 +25,8 @@ public:
     float aspectRatio() const { return static_cast<float>(metalDrawable->texture()->width()) / static_cast<float>(metalDrawable->texture()->height()); }
     glm::vec4 viewport() const { return glm::vec4(0, 0, metalDrawable->texture()->width(), metalDrawable->texture()->height()); }
     glm::vec2 dimensions() const { return glm::vec2(metalDrawable->texture()->width(), metalDrawable->texture()->height()); }
+
+    Engine* engine;
 
 private:
     void initMetal();

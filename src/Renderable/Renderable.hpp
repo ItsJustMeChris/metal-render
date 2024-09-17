@@ -10,6 +10,8 @@
 #include "Camera.hpp"
 #include "PipelineManager.hpp"
 
+class Engine;
+
 struct VertexData
 {
     simd::float4 position;
@@ -34,11 +36,13 @@ struct LightData
 class Renderable
 {
 public:
-    Renderable(MTL::Device *device, PipelineManager *pipelineManager, const std::string &pipelineName, const std::string &objFilePath, const glm::vec3 &position = glm::vec3(0.0f), const simd::float4 color = {0.5f, 0.5f, 0.5f, .3f});
+    Renderable(MTL::Device *device, Engine *engine, PipelineManager *pipelineManager, const std::string &pipelineName, const std::string &objFilePath, const glm::vec3 &position = glm::vec3(0.0f), const simd::float4 color = {0.5f, 0.5f, 0.5f, .3f});
     ~Renderable();
 
-    void draw(CA::MetalLayer *metalLayer, Camera &camera, MTL::RenderCommandEncoder *renderCommandEncoder, MTL::DepthStencilState *depthStencilState);
+    void draw(Camera &camera, MTL::RenderCommandEncoder *renderCommandEncoder, MTL::DepthStencilState *depthStencilState);
     glm::vec3 getPosition() const { return position; }
+
+    Engine *engine;
 
 private:
     MTL::Device *device;

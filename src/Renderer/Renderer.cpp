@@ -1,7 +1,8 @@
 #include "Renderer.hpp"
+#include "Engine.hpp"
 #include "ImGuiHandler.hpp"
 
-Renderer::Renderer(SDL_MetalView metalView)
+Renderer::Renderer(SDL_MetalView metalView, Engine* engine)
     : metalView(metalView),
       metalCommandBuffer(nullptr, [](MTL::CommandBuffer *b)
                          { if(b) b->release(); }),
@@ -14,6 +15,7 @@ Renderer::Renderer(SDL_MetalView metalView)
       lightBuffer(nullptr, [](MTL::Buffer *b)
                   { if(b) b->release(); })
 {
+    this->engine = engine;
     initMetal();
 }
 
@@ -45,6 +47,7 @@ void Renderer::initMetal()
     device = MTL::CreateSystemDefaultDevice();
 
     pipelineManager = new PipelineManager(device);
+    pipelineManager->engine = engine;
 
     metalLayer->setDevice(device);
     metalLayer->setPixelFormat(MTL::PixelFormatBGRA8Unorm);
@@ -63,10 +66,10 @@ void Renderer::initMetal()
     renderPassDescriptor.reset(MTL::RenderPassDescriptor::alloc()->init());
 
     // Load renderables
-    renderables.push_back(std::make_unique<Renderable>(device, pipelineManager, "standard", "bin/Release/assets/teapot.obj", glm::vec3(0.0f, 0.0f, 0.0f)));
-    renderables.push_back(std::make_unique<Renderable>(device, pipelineManager, "standard", "bin/Release/assets/teapot.obj", glm::vec3(10.0f, 0.0f, 0.0f)));
-    renderables.push_back(std::make_unique<Renderable>(device, pipelineManager, "debug", "bin/Release/assets/cow.obj", glm::vec3(0.0f, 50.0f, 0.0f)));
-    renderables.push_back(std::make_unique<Renderable>(device, pipelineManager, "debug", "bin/Release/assets/teddy.obj", glm::vec3(50.0f, 50.0f, 0.0f)));
+    renderables.push_back(std::make_unique<Renderable>(device, this->engine, pipelineManager, "standard", "bin/Release/assets/teapot.obj", glm::vec3(0.0f, 0.0f, 0.0f)));
+    renderables.push_back(std::make_unique<Renderable>(device, this->engine, pipelineManager, "standard", "bin/Release/assets/teapot.obj", glm::vec3(10.0f, 0.0f, 0.0f)));
+    renderables.push_back(std::make_unique<Renderable>(device, this->engine, pipelineManager, "debug", "bin/Release/assets/cow.obj", glm::vec3(0.0f, 50.0f, 0.0f)));
+    renderables.push_back(std::make_unique<Renderable>(device, this->engine, pipelineManager, "debug", "bin/Release/assets/teddy.obj", glm::vec3(50.0f, 50.0f, 0.0f)));
 
     setupEventHandlers();
 }
@@ -235,10 +238,8 @@ void Renderer::render(Camera &camera, ImGuiHandler &imguiHandler)
 
 void Renderer::drawRenderables(MTL::RenderCommandEncoder *renderCommandEncoder, Camera &camera)
 {
-    CA::MetalLayer *metalLayer = static_cast<CA::MetalLayer *>(SDL_Metal_GetLayer(metalView));
-
     for (const auto &renderable : renderables)
     {
-        renderable->draw(metalLayer, camera, renderCommandEncoder, depthStencilState);
+        renderable->draw(camera, renderCommandEncoder, depthStencilState);
     }
 }

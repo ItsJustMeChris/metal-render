@@ -3,6 +3,8 @@
 #include <unordered_map>
 #include <string>
 
+class Engine;
+
 class PipelineManager
 {
 public:
@@ -14,6 +16,7 @@ public:
     void createPipeline(const std::string &name, const MTL::RenderPipelineDescriptor *descriptor);
 
     MTL::Library *library;
+    Engine* engine;
 
 private:
     MTL::Device *device;

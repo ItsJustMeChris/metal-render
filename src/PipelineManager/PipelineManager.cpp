@@ -1,4 +1,5 @@
 #include "PipelineManager.hpp"
+#include "Engine.hpp"
 #include <iostream>
 
 PipelineManager::PipelineManager(MTL::Device* device) : device(device), library(nullptr) {

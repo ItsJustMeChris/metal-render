@@ -1,10 +1,13 @@
 #include "Renderable.hpp"
+#include "Engine.hpp"
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "tiny_obj_loader.h"
 
-Renderable::Renderable(MTL::Device *device, PipelineManager *pipelineManager, const std::string &pipelineName, const std::string &objFilePath, const glm::vec3 &position, const simd::float4 color)
+Renderable::Renderable(MTL::Device *device, Engine *engine, PipelineManager *pipelineManager, const std::string &pipelineName, const std::string &objFilePath, const glm::vec3 &position, const simd::float4 color)
     : device(device), modelMatrix(glm::mat4(1.0f)), position(position), color(color)
 {
+    this->engine = engine;
+
     // Get the pipeline state from the PipelineManager
     pipelineState = pipelineManager->getPipeline(pipelineName);
     if (!pipelineState)
@@ -133,17 +136,12 @@ void Renderable::createBuffers()
     transformBuffer = device->newBuffer(sizeof(TransformationData), MTL::ResourceStorageModeShared);
 }
 
-void Renderable::draw(CA::MetalLayer *metalLayer, Camera &camera, MTL::RenderCommandEncoder *renderCommandEncoder, MTL::DepthStencilState *depthStencilState)
+void Renderable::draw(Camera &camera, MTL::RenderCommandEncoder *renderCommandEncoder, MTL::DepthStencilState *depthStencilState)
 {
-    // Model matrix: simple translation
     glm::mat4 modelMatrix = glm::translate(glm::mat4(1.0f), position);
-
-    // View matrix: get from our Camera class
     glm::mat4 viewMatrix = camera.GetViewMatrix();
-
-    // Projection matrix
-    float aspectRatio = metalLayer->drawableSize().width / metalLayer->drawableSize().height;
-    glm::mat4 projectionMatrix = glm::perspective(glm::radians(45.0f), aspectRatio, 0.1f, 1000.0f);
+    float aspectRatio = engine->getRenderer()->aspectRatio();
+    glm::mat4 projectionMatrix = camera.GetProjectionMatrix(aspectRatio);
 
     // Update uniform buffer
     TransformationData transformationData = {modelMatrix, viewMatrix, projectionMatrix};
