@@ -5,3 +5,5 @@ shaders/*.ir
 .vscode
 build/*
 obj/*
+
+**/imgui.ini

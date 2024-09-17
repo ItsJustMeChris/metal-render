@@ -10,6 +10,8 @@
 #include <cstdio>
 #include <simd/simd.h>
 #include <filesystem>
+#include <memory>
+#include <vector>
 #include "Texture.hpp"
 #include "AAPLMathUtilities.h"
 #include <glm/glm.hpp>
@@ -25,30 +27,29 @@ public:
     void Run();
 
 private:
-    SDL_Window *window = nullptr;
-    SDL_MetalView metalView = nullptr;
     bool running = false;
-
     Camera camera;
 
-    MTL::Device *device = nullptr;
-    CA::MetalDrawable *metalDrawable;
+    std::unique_ptr<SDL_Window, void(*)(SDL_Window*)> window;
+    SDL_MetalView metalView = nullptr;
 
-    MTL::Library *metalDefaultLibrary;
-    MTL::CommandQueue *metalCommandQueue;
-    MTL::CommandBuffer *metalCommandBuffer;
-    MTL::RenderPipelineState *metalRenderPSO;
+    MTL::Device* device = nullptr;
+    CA::MetalDrawable* metalDrawable = nullptr;
 
-    std::vector<Renderable *> renderables;
+    MTL::Library* metalDefaultLibrary = nullptr;
+    MTL::CommandQueue* metalCommandQueue = nullptr;
+    std::unique_ptr<MTL::CommandBuffer, void(*)(MTL::CommandBuffer*)> metalCommandBuffer;
+    MTL::RenderPipelineState* metalRenderPSO = nullptr;
 
-    void createDepthAndMSAATextures();
-    void createRenderPassDescriptor();
-    void updateRenderPassDescriptor();
+    std::vector<std::unique_ptr<Renderable>> renderables;
 
-    MTL::DepthStencilState *depthStencilState;
-    MTL::RenderPassDescriptor *renderPassDescriptor;
-    MTL::Texture *msaaRenderTargetTexture = nullptr;
-    MTL::Texture *depthTexture;
+    MTL::DepthStencilState* depthStencilState = nullptr;
+    std::unique_ptr<MTL::Texture, void(*)(MTL::Texture*)> msaaRenderTargetTexture;
+    std::unique_ptr<MTL::Texture, void(*)(MTL::Texture*)> depthTexture;
+
+    std::unique_ptr<MTL::RenderPassDescriptor, void(*)(MTL::RenderPassDescriptor*)> renderPassDescriptor;
+    std::unique_ptr<MTL::Buffer, void(*)(MTL::Buffer*)> lightBuffer;
+
     int sampleCount = 4;
 
     void InitMetal();
@@ -56,6 +57,7 @@ private:
     void createCommandQueue();
     void createRenderPipeline();
     void resizeFrameBuffer();
+    void createDepthAndMSAATextures();
 
     void drawRenderables(MTL::RenderCommandEncoder *renderEncoder);
     void drawImGui(MTL::RenderPassDescriptor *renderPassDescriptor);

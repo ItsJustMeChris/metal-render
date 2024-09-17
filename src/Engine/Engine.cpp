@@ -5,23 +5,31 @@
 
 #define MTL_DEBUG_LAYER 1
 
-// Constructor
 Engine::Engine(const std::string &title)
+    : window(nullptr, SDL_DestroyWindow),
+      metalCommandBuffer(nullptr, [](MTL::CommandBuffer *b)
+                         { if(b) b->release(); }),
+      msaaRenderTargetTexture(nullptr, [](MTL::Texture *t)
+                              { if(t) t->release(); }),
+      depthTexture(nullptr, [](MTL::Texture *t)
+                   { if(t) t->release(); }),
+      renderPassDescriptor(nullptr, [](MTL::RenderPassDescriptor *r)
+                           { if(r) r->release(); }),
+      lightBuffer(nullptr, [](MTL::Buffer *b)
+                  { if(b) b->release(); })
 {
-    // Initialize SDL
     if (SDL_Init(SDL_INIT_VIDEO) != 0)
     {
         std::cerr << "SDL_Init Error: " << SDL_GetError() << std::endl;
         return;
     }
 
-    // Create SDL Window with Metal support
-    window = SDL_CreateWindow(title.c_str(),
-                              SDL_WINDOWPOS_CENTERED,
-                              SDL_WINDOWPOS_CENTERED,
-                              1920,
-                              1080,
-                              SDL_WINDOW_METAL | SDL_WINDOW_ALLOW_HIGHDPI | SDL_WINDOW_RESIZABLE);
+    window.reset(SDL_CreateWindow(title.c_str(),
+                                  SDL_WINDOWPOS_CENTERED,
+                                  SDL_WINDOWPOS_CENTERED,
+                                  1920,
+                                  1080,
+                                  SDL_WINDOW_METAL | SDL_WINDOW_ALLOW_HIGHDPI | SDL_WINDOW_RESIZABLE));
 
     if (!window)
     {
@@ -29,20 +37,18 @@ Engine::Engine(const std::string &title)
         return;
     }
 
-    // Create Metal view
-    metalView = SDL_Metal_CreateView(window);
+    metalView = SDL_Metal_CreateView(window.get());
     if (!metalView)
     {
         std::cerr << "SDL_Metal_CreateView Error: " << SDL_GetError() << std::endl;
         return;
     }
 
-    // sdl window size event handler
     SDL_AddEventWatch([](void *userdata, SDL_Event *event) -> int
                       {
         if (event->type == SDL_WINDOWEVENT && event->window.event == SDL_WINDOWEVENT_SIZE_CHANGED)
         {
-            Engine *engine = (Engine *)userdata;
+            Engine *engine = static_cast<Engine*>(userdata);
             engine->resizeFrameBuffer();
         }
         return 1; },
@@ -50,7 +56,6 @@ Engine::Engine(const std::string &title)
 
     camera = Camera({0.0f, 0.0f, 1.0f}, {0.0f, 1.0f, 0.0f}, -90.0f, 0.0f);
 
-    // Initialize Metal
     InitMetal();
 
     running = true;
@@ -59,7 +64,7 @@ Engine::Engine(const std::string &title)
 void Engine::resizeFrameBuffer()
 {
     CA::MetalLayer *metalLayer = (CA::MetalLayer *)SDL_Metal_GetLayer(metalView);
-    metalLayer->setDrawableSize(metalLayer->drawableSize()); // Ensure this is updated properly
+    metalLayer->setDrawableSize(metalLayer->drawableSize());
 
     if (msaaRenderTargetTexture)
     {
@@ -72,117 +77,89 @@ void Engine::resizeFrameBuffer()
         depthTexture = nullptr;
     }
 
-    // Recreate the textures with the new size
     createDepthAndMSAATextures();
 
-    // Get the new drawable and update the render pass descriptor
-    metalDrawable = metalLayer->nextDrawable();
-    updateRenderPassDescriptor();
+    if (metalDrawable)
+    {
+        metalDrawable->release();
+        metalDrawable = nullptr;
+    }
 }
 
-// Destructor
 Engine::~Engine()
 {
-    // Release resources
+    msaaRenderTargetTexture.reset();
+    depthTexture.reset();
+    renderPassDescriptor.reset();
+    lightBuffer.reset();
+
     if (metalDefaultLibrary)
         metalDefaultLibrary->release();
 
-    // if (metalCommandQueue)
-    //     metalCommandQueue->release();
+    if (metalCommandQueue)
+        metalCommandQueue->release();
 
-    // if (metalCommandBuffer)
-    //     metalCommandBuffer->release();
+    if (metalRenderPSO)
+        metalRenderPSO->release();
 
-    // if (metalRenderPSO)
-    //     metalRenderPSO->release();
-
-    // if (msaaRenderTargetTexture)
-    //     msaaRenderTargetTexture->release();
-
-    // if (depthTexture)
-    //     depthTexture->release();
-
-    // if (renderPassDescriptor)
-    //     renderPassDescriptor->release();
+    if (depthStencilState)
+        depthStencilState->release();
 
     if (device)
         device->release();
 
-    // Destroy Metal view and SDL window
+    renderables.clear();
+
+    ImGui_ImplMetal_Shutdown();
+    ImGui_ImplSDL2_Shutdown();
+    ImGui::DestroyContext();
+
     if (metalView)
         SDL_Metal_DestroyView(metalView);
-    if (window)
-        SDL_DestroyWindow(window);
 
     SDL_Quit();
 }
 
 void Engine::InitMetal()
 {
-    // Get the CAMetalLayer from the SDL Metal view
-    CA::MetalLayer *metalLayer = (CA::MetalLayer *)SDL_Metal_GetLayer(metalView);
+    CA::MetalLayer *metalLayer = static_cast<CA::MetalLayer *>(SDL_Metal_GetLayer(metalView));
 
-    // Create Metal device
     device = MTL::CreateSystemDefaultDevice();
 
     metalLayer->setDevice(device);
     metalLayer->setPixelFormat(MTL::PixelFormatBGRA8Unorm);
 
-    renderables.push_back(new Renderable(device, "/Users/chris/Documents/Programming/Repos/metal-render/bin/Release/assets/teapot.obj", glm::vec3(0.0f, 0.0f, 0.0f)));
-    renderables.push_back(new Renderable(device, "/Users/chris/Documents/Programming/Repos/metal-render/bin/Release/assets/teapot.obj", glm::vec3(10.0f, 0.0f, 0.0f)));
-    renderables.push_back(new Renderable(device, "/Users/chris/Documents/Programming/Repos/metal-render/bin/Release/assets/cow.obj", glm::vec3(0.0f, 50.0f, 0.0f)));
-    renderables.push_back(new Renderable(device, "/Users/chris/Documents/Programming/Repos/metal-render/bin/Release/assets/teddy.obj", glm::vec3(50.0f, 50.0f, 0.0f)));
+    // Assume running from root directory and not from build directory
+    renderables.push_back(std::make_unique<Renderable>(device, "bin/Release/assets/teapot.obj", glm::vec3(0.0f, 0.0f, 0.0f)));
+    renderables.push_back(std::make_unique<Renderable>(device, "bin/Release/assets/teapot.obj", glm::vec3(10.0f, 0.0f, 0.0f)));
+    renderables.push_back(std::make_unique<Renderable>(device, "bin/Release/assets/cow.obj", glm::vec3(0.0f, 50.0f, 0.0f)));
+    renderables.push_back(std::make_unique<Renderable>(device, "bin/Release/assets/teddy.obj", glm::vec3(50.0f, 50.0f, 0.0f)));
 
     createDefaultLibrary();
     createCommandQueue();
     createRenderPipeline();
     createDepthAndMSAATextures();
-    createRenderPassDescriptor();
+
+    LightData lightData;
+    lightData.ambientColor = simd::float3{0.2f, 0.2f, 0.2f};
+    lightData.lightDirection = simd::float3{1.0f, 1.0f, 1.0f};
+    lightData.lightColor = simd::float3{1.0f, 1.0f, 1.0f};
+
+    lightBuffer.reset(device->newBuffer(&lightData, sizeof(LightData), MTL::ResourceStorageModeShared));
+
+    renderPassDescriptor.reset(MTL::RenderPassDescriptor::alloc()->init());
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO &io = ImGui::GetIO();
     (void)io;
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard; // Enable Keyboard Controls
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;  // Enable Gamepad Controls
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
 
-    // Setup Dear ImGui style
     ImGui::StyleColorsDark();
 
     ImGui_ImplMetal_Init(device);
-    ImGui_ImplSDL2_InitForMetal(window);
-}
-
-void Engine::createRenderPassDescriptor()
-{
-    CA::MetalLayer *metalLayer = (CA::MetalLayer *)SDL_Metal_GetLayer(metalView);
-    metalDrawable = metalLayer->nextDrawable();
-
-    renderPassDescriptor = MTL::RenderPassDescriptor::alloc()->init();
-
-    MTL::RenderPassColorAttachmentDescriptor *colorAttachment = renderPassDescriptor->colorAttachments()->object(0);
-    MTL::RenderPassDepthAttachmentDescriptor *depthAttachment = renderPassDescriptor->depthAttachment();
-
-    colorAttachment->setTexture(msaaRenderTargetTexture);
-    colorAttachment->setResolveTexture(metalDrawable->texture());
-    colorAttachment->setLoadAction(MTL::LoadActionClear);
-    colorAttachment->setClearColor(MTL::ClearColor(41.0f / 255.0f, 42.0f / 255.0f, 48.0f / 255.0f, 1.0));
-    colorAttachment->setStoreAction(MTL::StoreActionMultisampleResolve);
-
-    depthAttachment->setTexture(depthTexture);
-    depthAttachment->setLoadAction(MTL::LoadActionClear);
-    depthAttachment->setStoreAction(MTL::StoreActionDontCare);
-    depthAttachment->setClearDepth(1.0);
-}
-
-void Engine::updateRenderPassDescriptor()
-{
-    if (renderPassDescriptor)
-    {
-        renderPassDescriptor->colorAttachments()->object(0)->setTexture(msaaRenderTargetTexture);
-        renderPassDescriptor->colorAttachments()->object(0)->setResolveTexture(metalDrawable->texture());
-        renderPassDescriptor->depthAttachment()->setTexture(depthTexture);
-    }
+    ImGui_ImplSDL2_InitForMetal(window.get());
 }
 
 void Engine::createDefaultLibrary()
@@ -191,7 +168,9 @@ void Engine::createDefaultLibrary()
 
     if (!metalDefaultLibrary)
     {
-        std::cerr << "Failed to load library from shaders.metallib." << std::endl;
+        std::cerr << "Failed to load default library." << std::endl;
+        if (device)
+            device->release();
         std::exit(-1);
     }
 }
@@ -245,7 +224,7 @@ void Engine::createRenderPipeline()
 
 void Engine::createDepthAndMSAATextures()
 {
-    CA::MetalLayer *metalLayer = (CA::MetalLayer *)SDL_Metal_GetLayer(metalView);
+    CA::MetalLayer *metalLayer = static_cast<CA::MetalLayer *>(SDL_Metal_GetLayer(metalView));
 
     MTL::TextureDescriptor *msaaTextureDescriptor = MTL::TextureDescriptor::alloc()->init();
     msaaTextureDescriptor->setTextureType(MTL::TextureType2DMultisample);
@@ -255,7 +234,7 @@ void Engine::createDepthAndMSAATextures()
     msaaTextureDescriptor->setSampleCount(sampleCount);
     msaaTextureDescriptor->setUsage(MTL::TextureUsageRenderTarget);
 
-    msaaRenderTargetTexture = device->newTexture(msaaTextureDescriptor);
+    msaaRenderTargetTexture.reset(device->newTexture(msaaTextureDescriptor));
 
     MTL::TextureDescriptor *depthTextureDescriptor = MTL::TextureDescriptor::alloc()->init();
     depthTextureDescriptor->setTextureType(MTL::TextureType2DMultisample);
@@ -265,7 +244,7 @@ void Engine::createDepthAndMSAATextures()
     depthTextureDescriptor->setUsage(MTL::TextureUsageRenderTarget);
     depthTextureDescriptor->setSampleCount(sampleCount);
 
-    depthTexture = device->newTexture(depthTextureDescriptor);
+    depthTexture.reset(device->newTexture(depthTextureDescriptor));
 
     msaaTextureDescriptor->release();
     depthTextureDescriptor->release();
@@ -284,7 +263,6 @@ void Engine::drawImGui(MTL::RenderPassDescriptor *renderPassDescriptor)
     MTL::RenderCommandEncoder *imguiRenderCommandEncoder =
         metalCommandBuffer->renderCommandEncoder(renderPassDescriptor);
 
-    // Start ImGui frame
     ImGui_ImplMetal_NewFrame(renderPassDescriptor);
     ImGui_ImplSDL2_NewFrame();
     ImGui::NewFrame();
@@ -292,12 +270,10 @@ void Engine::drawImGui(MTL::RenderPassDescriptor *renderPassDescriptor)
     ImGuiIO &io = ImGui::GetIO();
     float dpiScaleFactor = static_cast<float>(metalDrawable->texture()->width()) / io.DisplaySize.x;
 
-    // Show demo window (optional)
     static bool showDemoWindow = false;
     if (showDemoWindow)
         ImGui::ShowDemoWindow(&showDemoWindow);
 
-    // Renderables window
     ImGui::Begin("Renderables");
 
     int index = 0;
@@ -305,16 +281,13 @@ void Engine::drawImGui(MTL::RenderPassDescriptor *renderPassDescriptor)
 
     for (auto &renderable : renderables)
     {
-        // Get renderable's name or default to "Renderable N"
         std::string renderableName = "Renderable " + std::to_string(index);
 
-        // Create a collapsible header for each renderable
         if (ImGui::CollapsingHeader(renderableName.c_str()))
         {
             glm::vec4 viewport(0, 0, metalDrawable->texture()->width(),
                                metalDrawable->texture()->height());
 
-            // Compute screen position
             glm::vec2 screenPos = camera.WorldToScreen(
                 renderable->getPosition(),
                 camera.GetProjectionMatrix(aspectRatio),
@@ -324,10 +297,8 @@ void Engine::drawImGui(MTL::RenderPassDescriptor *renderPassDescriptor)
             bool isInFrontOfCamera =
                 (screenPos.x != -FLT_MAX && screenPos.y != -FLT_MAX);
 
-            // Apply DPI scaling
             screenPos /= dpiScaleFactor;
 
-            // Draw line and label if in front of the camera
             if (isInFrontOfCamera)
             {
                 drawList->AddLine(ImVec2(io.DisplaySize.x / 2, io.DisplaySize.y / 2),
@@ -339,7 +310,6 @@ void Engine::drawImGui(MTL::RenderPassDescriptor *renderPassDescriptor)
                                   renderableName.c_str());
             }
 
-            // Display renderable info
             ImGui::Text("Position: (%.2f, %.2f, %.2f)",
                         renderable->getPosition().x,
                         renderable->getPosition().y,
@@ -348,7 +318,6 @@ void Engine::drawImGui(MTL::RenderPassDescriptor *renderPassDescriptor)
                         isInFrontOfCamera ? "In front of the camera"
                                           : "Behind the camera or invalid");
 
-            // Teleport and Look At buttons with unique IDs
             if (ImGui::Button(("Teleport##" + std::to_string(index)).c_str()))
             {
                 camera.Teleport(renderable->getPosition());
@@ -364,7 +333,6 @@ void Engine::drawImGui(MTL::RenderPassDescriptor *renderPassDescriptor)
 
     ImGui::End();
 
-    // Camera controls window
     ImGui::Begin("Camera Controls");
 
     ImGui::Text("Screen Size: (%lu, %lu)",
@@ -378,7 +346,6 @@ void Engine::drawImGui(MTL::RenderPassDescriptor *renderPassDescriptor)
                 camera.GetPosition().z);
     ImGui::Text("DPI Scale Factor: %.2f", dpiScaleFactor);
 
-    // Teleport input fields
     static float teleportCoords[3] = {490.0f, -281.0f, -4387.0f};
     ImGui::InputFloat3("Teleport Coordinates", teleportCoords);
 
@@ -389,12 +356,10 @@ void Engine::drawImGui(MTL::RenderPassDescriptor *renderPassDescriptor)
 
     ImGui::End();
 
-    // Render ImGui draw data
     ImGui::Render();
     ImDrawData *drawData = ImGui::GetDrawData();
-    ImGui_ImplMetal_RenderDrawData(drawData, metalCommandBuffer, imguiRenderCommandEncoder);
+    ImGui_ImplMetal_RenderDrawData(drawData, metalCommandBuffer.get(), imguiRenderCommandEncoder);
 
-    // End encoding
     imguiRenderCommandEncoder->endEncoding();
     imguiRenderCommandEncoder->release();
 }
@@ -406,89 +371,58 @@ simd::float3 glmToSimd(const glm::vec3 &v)
 
 void Engine::sendRenderCommand()
 {
-    // Create a new command buffer
-    metalCommandBuffer = metalCommandQueue->commandBuffer();
+    CA::MetalLayer *metalLayer = static_cast<CA::MetalLayer *>(SDL_Metal_GetLayer(metalView));
 
-    // Update the render pass descriptor if necessary
-    updateRenderPassDescriptor();
+    metalDrawable = metalLayer->nextDrawable();
+    if (!metalDrawable)
+    {
+        std::cerr << "Failed to get next drawable, skipping frame." << std::endl;
+        return;
+    }
 
-    // Create a new render pass descriptor
-    MTL::RenderPassDescriptor *renderPassDescriptor = MTL::RenderPassDescriptor::alloc()->init();
+    metalCommandBuffer.reset(metalCommandQueue->commandBuffer());
+
     MTL::RenderPassColorAttachmentDescriptor *cd = renderPassDescriptor->colorAttachments()->object(0);
     cd->setTexture(metalDrawable->texture());
     cd->setLoadAction(MTL::LoadActionClear);
     cd->setClearColor(MTL::ClearColor(41.0f / 255.0f, 42.0f / 255.0f, 48.0f / 255.0f, 1.0f));
     cd->setStoreAction(MTL::StoreActionStore);
 
-    // Add depth attachment
-    MTL::TextureDescriptor *depthTextureDescriptor = MTL::TextureDescriptor::texture2DDescriptor(
-        MTL::PixelFormatDepth32Float,
-        metalDrawable->texture()->width(),
-        metalDrawable->texture()->height(),
-        false);
-    depthTextureDescriptor->setUsage(MTL::TextureUsageRenderTarget);
-    depthTextureDescriptor->setStorageMode(MTL::StorageModePrivate);
-
-    MTL::Texture *depthTexture = device->newTexture(depthTextureDescriptor);
-    renderPassDescriptor->depthAttachment()->setTexture(depthTexture);
+    renderPassDescriptor->depthAttachment()->setTexture(depthTexture.get());
     renderPassDescriptor->depthAttachment()->setClearDepth(1.0);
     renderPassDescriptor->depthAttachment()->setLoadAction(MTL::LoadActionClear);
-    renderPassDescriptor->depthAttachment()->setStoreAction(MTL::StoreActionStore);
+    renderPassDescriptor->depthAttachment()->setStoreAction(MTL::StoreActionDontCare);
 
-    // Start the render command encoder for 3D rendering
-    MTL::RenderCommandEncoder *renderCommandEncoder = metalCommandBuffer->renderCommandEncoder(renderPassDescriptor);
+    MTL::RenderCommandEncoder *renderCommandEncoder = metalCommandBuffer->renderCommandEncoder(renderPassDescriptor.get());
 
-    // Set the viewport
     renderCommandEncoder->setViewport(MTL::Viewport{0.0, 0.0,
                                                     static_cast<double>(metalDrawable->texture()->width()),
                                                     static_cast<double>(metalDrawable->texture()->height()),
                                                     0.0, 1.0});
 
-    // Set the depth stencil state
     renderCommandEncoder->setDepthStencilState(depthStencilState);
 
-    LightData lightData;
-    lightData.ambientColor = glmToSimd(glm::vec3(0.2f, 0.2f, 0.2f)); // Ambient light color
-    // project the sun downwards at a 45 degree angle
-    lightData.lightDirection = glmToSimd(glm::vec3(1.0f, 1.0f, 1.0f));
-    lightData.lightColor = glmToSimd(glm::vec3(1.0f, 1.0f, 1.0f)); // Light color
+    renderCommandEncoder->setFragmentBuffer(lightBuffer.get(), 0, 1);
 
-    // Create a buffer for the light data
-    MTL::Buffer *lightBuffer = device->newBuffer(&lightData, sizeof(LightData), MTL::ResourceStorageModeShared);
-
-    renderCommandEncoder->setFragmentBuffer(lightBuffer, 0, 1); // Bind the light buffer to the fragment shader
-
-    // Encode your render commands for 3D models
     drawRenderables(renderCommandEncoder);
 
     renderCommandEncoder->endEncoding();
+    renderCommandEncoder->release();
 
-    // Start a new render command encoder for ImGui
-    cd->setLoadAction(MTL::LoadActionLoad); // Change to Load to preserve 3D content
+    cd->setLoadAction(MTL::LoadActionLoad);
 
-    drawImGui(renderPassDescriptor);
+    drawImGui(renderPassDescriptor.get());
 
-    // Present the drawable to the screen
     metalCommandBuffer->presentDrawable(metalDrawable);
 
-    // Commit the command buffer and wait for completion
     metalCommandBuffer->commit();
-    metalCommandBuffer->waitUntilCompleted();
-
-    // Release resources
-    renderPassDescriptor->release();
-    metalCommandBuffer->release();
-    metalDrawable = nullptr;
-    renderCommandEncoder->release();
-    depthTexture->release();
-    depthTextureDescriptor->release();
 }
 
 void Engine::drawRenderables(MTL::RenderCommandEncoder *renderCommandEncoder)
 {
-    CA::MetalLayer *metalLayer = (CA::MetalLayer *)SDL_Metal_GetLayer(metalView);
+    CA::MetalLayer *metalLayer = static_cast<CA::MetalLayer *>(SDL_Metal_GetLayer(metalView));
 
-    for (auto renderable : renderables)
+    for (const auto &renderable : renderables)
     {
         renderable->draw(metalLayer, camera, renderCommandEncoder, metalRenderPSO, depthStencilState);
     }
@@ -500,11 +434,12 @@ void Engine::Run()
     Uint64 LAST = 0;
     double deltaTime = 0;
 
-    const double fixedTimeStep = 1.0 / 60.0; // 60 updates per second
+    // This effectively caps the framerate to 120 FPS (Change this to 144 for 144 FPS, etc.)
+    const double fixedTimeStep = 1.0 / 120.0; // 120 is the macbook pro "pro motion" refresh rate
     double accumulator = 0.0;
 
     int windowWidth, windowHeight;
-    SDL_GetWindowSize(window, &windowWidth, &windowHeight);
+    SDL_GetWindowSize(window.get(), &windowWidth, &windowHeight);
 
     while (running)
     {
@@ -513,7 +448,6 @@ void Engine::Run()
         deltaTime = (double)((NOW - LAST) / (double)SDL_GetPerformanceFrequency());
         accumulator += deltaTime;
 
-        // Event handling
         SDL_Event event;
         while (SDL_PollEvent(&event))
         {
@@ -522,7 +456,6 @@ void Engine::Run()
             if (event.type == SDL_QUIT)
                 running = false;
 
-            // Handle mouse button down/up for camera control
             if (event.type == SDL_MOUSEBUTTONDOWN && event.button.button == SDL_BUTTON_LEFT)
             {
                 if (!ImGui::GetIO().WantCaptureMouse)
@@ -538,7 +471,6 @@ void Engine::Run()
             }
         }
 
-        // Mouse motion for camera look (click-and-drag)
         if (!ImGui::GetIO().WantCaptureMouse)
         {
             int mouseX, mouseY;
@@ -546,31 +478,17 @@ void Engine::Run()
             camera.OnMouseMove(mouseX, mouseY);
         }
 
-        // Camera movement (smooth and frame-rate independent)
         if (!ImGui::GetIO().WantCaptureKeyboard)
         {
             const Uint8 *state = SDL_GetKeyboardState(NULL);
             camera.ProcessKeyboardInput(state, (float)deltaTime);
         }
 
-        // Fixed update step
         while (accumulator >= fixedTimeStep)
         {
-            // UpdateGameLogic(fixedTimeStep);
             accumulator -= fixedTimeStep;
         }
 
-        // Rendering
-        CA::MetalLayer *metalLayer = (CA::MetalLayer *)SDL_Metal_GetLayer(metalView);
-        metalDrawable = metalLayer->nextDrawable();
-        if (!metalDrawable)
-        {
-            std::cerr << "Failed to get next drawable, skipping frame." << std::endl;
-            SDL_Delay(1); // Small delay to prevent busy looping
-            continue;
-        }
-
-        // Your 3D rendering code here
         draw();
     }
 }
