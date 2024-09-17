@@ -2,7 +2,7 @@
 #include "Engine.hpp"
 #include "ImGuiHandler.hpp"
 
-Renderer::Renderer(SDL_MetalView metalView, Engine* engine)
+Renderer::Renderer(SDL_MetalView metalView, Engine *engine)
     : metalView(metalView),
       metalCommandBuffer(nullptr, [](MTL::CommandBuffer *b)
                          { if(b) b->release(); }),
@@ -56,20 +56,27 @@ void Renderer::initMetal()
     createRenderPipelines();
     createDepthAndMSAATextures();
 
+    // Initialize light data
     LightData lightData;
     lightData.ambientColor = simd::float3{0.2f, 0.2f, 0.2f};
     lightData.lightDirection = simd::float3{1.0f, 1.0f, 1.0f};
     lightData.lightColor = simd::float3{1.0f, 1.0f, 1.0f};
 
+    // Create light buffer
     lightBuffer.reset(device->newBuffer(&lightData, sizeof(LightData), MTL::ResourceStorageModeShared));
 
     renderPassDescriptor.reset(MTL::RenderPassDescriptor::alloc()->init());
 
-    // Load renderables
-    renderables.push_back(std::make_unique<Renderable>(device, this->engine, pipelineManager, "standard", "bin/Release/assets/teapot.obj", glm::vec3(0.0f, 0.0f, 0.0f)));
-    renderables.push_back(std::make_unique<Renderable>(device, this->engine, pipelineManager, "standard", "bin/Release/assets/teapot.obj", glm::vec3(10.0f, 0.0f, 0.0f)));
-    renderables.push_back(std::make_unique<Renderable>(device, this->engine, pipelineManager, "debug", "bin/Release/assets/cow.obj", glm::vec3(0.0f, 50.0f, 0.0f)));
-    renderables.push_back(std::make_unique<Renderable>(device, this->engine, pipelineManager, "debug", "bin/Release/assets/teddy.obj", glm::vec3(50.0f, 50.0f, 0.0f)));
+    // Load models
+    auto teapotModel = std::make_shared<Model>(device, "bin/Release/assets/teapot.obj");
+    auto cowModel = std::make_shared<Model>(device, "bin/Release/assets/cow.obj");
+    auto teddyModel = std::make_shared<Model>(device, "bin/Release/assets/teddy.obj");
+
+    // Load renderables using shared models
+    renderables.push_back(std::make_unique<Renderable>(device, this->engine, pipelineManager, "standard", teapotModel, glm::vec3(0.0f, 0.0f, 0.0f)));
+    renderables.push_back(std::make_unique<Renderable>(device, this->engine, pipelineManager, "standard", teapotModel, glm::vec3(10.0f, 0.0f, 0.0f)));
+    renderables.push_back(std::make_unique<Renderable>(device, this->engine, pipelineManager, "debug", cowModel, glm::vec3(0.0f, 50.0f, 0.0f)));
+    renderables.push_back(std::make_unique<Renderable>(device, this->engine, pipelineManager, "debug", teddyModel, glm::vec3(50.0f, 50.0f, 0.0f)));
 
     setupEventHandlers();
 }
