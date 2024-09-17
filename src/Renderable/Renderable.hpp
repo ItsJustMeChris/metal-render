@@ -13,19 +13,27 @@ struct VertexData
 {
     simd::float4 position;
     simd::float4 color;
-};
+    simd::float3 normal;
+} __attribute__((aligned(16)));
 
 struct TransformationData
 {
     glm::mat4 modelMatrix;
     glm::mat4 viewMatrix;
     glm::mat4 perspectiveMatrix;
-};
+} __attribute__((aligned(16)));
+
+struct LightData
+{
+    simd::float3 ambientColor;
+    simd::float3 lightDirection;
+    simd::float3 lightColor;
+} __attribute__((aligned(16)));
 
 class Renderable
 {
 public:
-    Renderable(MTL::Device *device, const std::string &objFilePath, const glm::vec3 &position = glm::vec3(0.0f, 0.0f, 0.0f));
+    Renderable(MTL::Device *device, const std::string &objFilePath, const glm::vec3 &position = glm::vec3(0.0f, 0.0f, 0.0f), const simd::float4 color = {0.5f, 0.5f, 0.5f, .3f});
     ~Renderable();
 
     void draw(CA::MetalLayer *metalLayer, Camera &camera, MTL::RenderCommandEncoder *renderCommandEncoder, MTL::RenderPipelineState *metalRenderPSO, MTL::DepthStencilState *depthStencilState);
@@ -38,9 +46,11 @@ private:
     std::vector<VertexData> vertices;
     NS::UInteger vertexCount;
 
+    simd::float4 color;
     glm::mat4 modelMatrix;
     glm::vec3 position;
 
     void loadOBJ(const std::string &filePath);
     void createBuffers();
+    void calculateNormals();
 };

@@ -234,7 +234,7 @@ void Engine::createRenderPipeline()
     }
 
     MTL::DepthStencilDescriptor *depthStencilDescriptor = MTL::DepthStencilDescriptor::alloc()->init();
-    depthStencilDescriptor->setDepthCompareFunction(MTL::CompareFunctionLessEqual);
+    depthStencilDescriptor->setDepthCompareFunction(MTL::CompareFunctionLess);
     depthStencilDescriptor->setDepthWriteEnabled(true);
     depthStencilState = device->newDepthStencilState(depthStencilDescriptor);
 
@@ -345,6 +345,20 @@ void Engine::drawImGui(MTL::RenderPassDescriptor *renderPassDescriptor)
     ImGui::Text("Camera Position: (%f, %f, %f)", camera.GetPosition().x, camera.GetPosition().y, camera.GetPosition().z);
     ImGui::Text("DPI Scale Factor: %f", dpiScaleFactor);
 
+    // teleport the camera to coordinates (imgui input and teleport button)
+    static float teleportX = 490.000f;
+    static float teleportY = -281.000f;
+    static float teleportZ = -4387.000;
+
+    ImGui::InputFloat("Teleport X", &teleportX);
+    ImGui::InputFloat("Teleport Y", &teleportY);
+    ImGui::InputFloat("Teleport Z", &teleportZ);
+
+    if (ImGui::Button("Teleport"))
+    {
+        camera.Teleport(glm::vec3(teleportX, teleportY, teleportZ));
+    }
+
     ImGui::Render();
     ImDrawData *draw_data = ImGui::GetDrawData();
 
@@ -355,6 +369,11 @@ void Engine::drawImGui(MTL::RenderPassDescriptor *renderPassDescriptor)
     imguiRenderCommandEncoder->endEncoding();
 
     imguiRenderCommandEncoder->release();
+}
+
+simd::float3 glmToSimd(const glm::vec3 &v)
+{
+    return simd::float3{v.x, v.y, v.z};
 }
 
 void Engine::sendRenderCommand()
@@ -399,6 +418,17 @@ void Engine::sendRenderCommand()
 
     // Set the depth stencil state
     renderCommandEncoder->setDepthStencilState(depthStencilState);
+
+    LightData lightData;
+    lightData.ambientColor = glmToSimd(glm::vec3(0.2f, 0.2f, 0.2f)); // Ambient light color
+    // project the sun downwards at a 45 degree angle
+    lightData.lightDirection = glmToSimd(glm::vec3(1.0f, 1.0f, 1.0f));
+    lightData.lightColor = glmToSimd(glm::vec3(1.0f, 1.0f, 1.0f)); // Light color
+
+    // Create a buffer for the light data
+    MTL::Buffer *lightBuffer = device->newBuffer(&lightData, sizeof(LightData), MTL::ResourceStorageModeShared);
+
+    renderCommandEncoder->setFragmentBuffer(lightBuffer, 0, 1); // Bind the light buffer to the fragment shader
 
     // Encode your render commands for 3D models
     drawRenderables(renderCommandEncoder);

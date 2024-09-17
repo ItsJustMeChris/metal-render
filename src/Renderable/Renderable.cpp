@@ -2,13 +2,14 @@
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "tiny_obj_loader.h"
 
-Renderable::Renderable(MTL::Device *device, const std::string &objFilePath, const glm::vec3 &position)
+Renderable::Renderable(MTL::Device *device, const std::string &objFilePath, const glm::vec3 &position, const simd::float4 color)
     : device(device), modelMatrix(glm::mat4(1.0f))
 {
+    this->position = position;
+    this->color = color;
+
     loadOBJ(objFilePath);
     createBuffers();
-
-    this->position = position;
 }
 
 Renderable::~Renderable()
@@ -43,11 +44,7 @@ void Renderable::loadOBJ(const std::string &filePath)
         throw std::runtime_error("Failed to load OBJ file: " + filePath);
     }
 
-    //    helper lambda to generate a random color
-    auto randomColor = []()
-    {
-        return static_cast<float>(rand()) / RAND_MAX;
-    };
+    simd::float4 grey = {0.5f, 0.5f, 0.5f, 1.0f};
 
     // Process the loaded data and fill the vertices vector
     for (const auto &shape : shapes)
@@ -61,15 +58,70 @@ void Renderable::loadOBJ(const std::string &filePath)
                 attrib.vertices[3 * index.vertex_index + 2],
                 1.0f};
 
-            vertex.color = {randomColor(), randomColor(), randomColor(), 1.0f};
+            if (index.normal_index >= 0 && !attrib.normals.empty())
+            {
+                vertex.normal = {
+                    attrib.normals[3 * index.normal_index + 0],
+                    attrib.normals[3 * index.normal_index + 1],
+                    attrib.normals[3 * index.normal_index + 2]};
+            }
+            else
+            {
+                // If normals are not provided, we'll calculate them later
+                vertex.normal = {0.0f, 0.0f, 0.0f};
+            }
+
+            vertex.color = this->color;
             vertices.push_back(vertex);
         }
+    }
+
+    // If normals were not provided, calculate them
+    if (attrib.normals.empty())
+    {
+        calculateNormals();
     }
 
     vertexCount = vertices.size();
     size_t bufferSize = vertexCount * sizeof(VertexData);
 
     vertexBuffer = device->newBuffer(vertices.data(), bufferSize, MTL::ResourceStorageModeShared);
+}
+
+void Renderable::calculateNormals()
+{
+    std::vector<simd::float3> faceNormals(vertices.size() / 3);
+    std::vector<std::vector<int>> vertexFaces(vertices.size());
+
+    // Calculate face normals
+    for (size_t i = 0; i < vertices.size(); i += 3)
+    {
+        simd::float3 v0 = {vertices[i].position[0], vertices[i].position[1], vertices[i].position[2]};
+        simd::float3 v1 = {vertices[i + 1].position[0], vertices[i + 1].position[1], vertices[i + 1].position[2]};
+        simd::float3 v2 = {vertices[i + 2].position[0], vertices[i + 2].position[1], vertices[i + 2].position[2]};
+
+        simd::float3 edge1 = v1 - v0;
+        simd::float3 edge2 = v2 - v0;
+        simd::float3 normal = simd::normalize(simd::cross(edge1, edge2));
+
+        faceNormals[i / 3] = normal;
+
+        vertexFaces[i].push_back(i / 3);
+        vertexFaces[i + 1].push_back(i / 3);
+        vertexFaces[i + 2].push_back(i / 3);
+    }
+
+    // Average face normals to get vertex normals
+    for (size_t i = 0; i < vertices.size(); ++i)
+    {
+        simd::float3 normal = {0.0f, 0.0f, 0.0f};
+        for (int faceIndex : vertexFaces[i])
+        {
+            normal += faceNormals[faceIndex];
+        }
+        normal = simd::normalize(normal);
+        vertices[i].normal = normal;
+    }
 }
 
 void Renderable::createBuffers()
@@ -87,7 +139,7 @@ void Renderable::draw(CA::MetalLayer *metalLayer, Camera &camera, MTL::RenderCom
 
     // Projection matrix
     float aspectRatio = metalLayer->drawableSize().width / metalLayer->drawableSize().height;
-    glm::mat4 projectionMatrix = glm::perspective(glm::radians(45.0f), aspectRatio, 0.1f, 100.0f);
+    glm::mat4 projectionMatrix = glm::perspective(glm::radians(45.0f), aspectRatio, 0.1f, 1000.0f);
 
     // Update uniform buffer
     TransformationData transformationData = {modelMatrix, viewMatrix, projectionMatrix};
@@ -95,7 +147,7 @@ void Renderable::draw(CA::MetalLayer *metalLayer, Camera &camera, MTL::RenderCom
 
     // Set up render command encoder
     renderCommandEncoder->setFrontFacingWinding(MTL::WindingCounterClockwise);
-    renderCommandEncoder->setCullMode(MTL::CullModeBack);
+    // renderCommandEncoder->setCullMode(MTL::CullModeBack);
     // renderCommandEncoder->setTriangleFillMode(MTL::TriangleFillModeLines);
     renderCommandEncoder->setRenderPipelineState(metalRenderPSO);
     renderCommandEncoder->setDepthStencilState(depthStencilState);
