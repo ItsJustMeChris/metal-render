@@ -5,9 +5,9 @@ glm::mat4 Camera::GetViewMatrix() const
     return glm::lookAt(Position, Position + Front, Up);
 }
 
-glm::mat4 Camera::GetProjectionMatrix(float aspectRatio, float nearPlane, float farPlane) const
+glm::mat4 Camera::GetProjectionMatrix(float aspectRatio) const
 {
-    return glm::perspective(glm::radians(45.0f), aspectRatio, nearPlane, farPlane);
+    return glm::perspective(glm::radians(FOV), aspectRatio, NearPlane, FarPlane);
 }
 
 void Camera::ProcessKeyboard(Camera_Movement direction, float deltaTime)
@@ -48,11 +48,14 @@ void Camera::ProcessMouseMovement(float xoffset, float yoffset, bool constrainPi
 
 void Camera::updateCameraVectors()
 {
+    // Calculate the new Front vector
     glm::vec3 front;
     front.x = cos(glm::radians(Yaw)) * cos(glm::radians(Pitch));
     front.y = sin(glm::radians(Pitch));
     front.z = sin(glm::radians(Yaw)) * cos(glm::radians(Pitch));
     Front = glm::normalize(front);
+
+    // Recalculate Right and Up vectors
     Right = glm::normalize(glm::cross(Front, WorldUp));
     Up = glm::normalize(glm::cross(Right, Front));
 }
@@ -75,4 +78,68 @@ glm::vec2 Camera::WorldToScreen(const glm::vec3 &worldPosition, const glm::mat4 
     windowSpacePosition.y = viewport.y + viewport.w * (1.0f - (ndcSpacePosition.y + 1.0f) / 2.0f); // Flip Y-coordinate
 
     return windowSpacePosition;
+}
+
+void Camera::LookAt(const glm::vec3 &targetPosition)
+{
+    glm::vec3 direction = glm::normalize(targetPosition - Position);
+
+    Pitch = glm::degrees(asin(direction.y));
+    Yaw = glm::degrees(atan2(direction.z, direction.x));
+
+    updateCameraVectors();
+}
+
+void Camera::OnMouseButtonDown(int x, int y)
+{
+    if (!mouseButtonDown)
+    {
+        mouseButtonDown = true;
+        lastMouseX = x;
+        lastMouseY = y;
+        firstMouse = true;
+    }
+}
+
+void Camera::OnMouseButtonUp()
+{
+    mouseButtonDown = false;
+}
+
+void Camera::OnMouseMove(int x, int y)
+{
+    if (mouseButtonDown)
+    {
+        if (firstMouse)
+        {
+            lastMouseX = x;
+            lastMouseY = y;
+            firstMouse = false;
+        }
+
+        float xoffset = x - lastMouseX;
+        float yoffset = lastMouseY - y; // Reversed since y-coordinates go from bottom to top
+
+        lastMouseX = x;
+        lastMouseY = y;
+
+        ProcessMouseMovement(xoffset, yoffset);
+    }
+}
+
+void Camera::ProcessKeyboardInput(const Uint8 *state, float deltaTime)
+{
+    float velocity = MovementSpeed * deltaTime;
+    if (state[SDL_SCANCODE_W])
+        Position += Front * velocity;
+    if (state[SDL_SCANCODE_S])
+        Position -= Front * velocity;
+    if (state[SDL_SCANCODE_A])
+        Position -= Right * velocity;
+    if (state[SDL_SCANCODE_D])
+        Position += Right * velocity;
+    if (state[SDL_SCANCODE_SPACE])
+        Position += Up * velocity;
+    if (state[SDL_SCANCODE_X])
+        Position -= Up * velocity;
 }

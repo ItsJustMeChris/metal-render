@@ -278,96 +278,124 @@ void Engine::draw()
 
 void Engine::drawImGui(MTL::RenderPassDescriptor *renderPassDescriptor)
 {
-    float aspectRatio = static_cast<float>(metalDrawable->texture()->width()) / static_cast<float>(metalDrawable->texture()->height());
-    float nearPlane = 0.1f;
-    float farPlane = 100.0f;
+    float aspectRatio = static_cast<float>(metalDrawable->texture()->width()) /
+                        static_cast<float>(metalDrawable->texture()->height());
 
-    MTL::RenderCommandEncoder *imguiRenderCommandEncoder = metalCommandBuffer->renderCommandEncoder(renderPassDescriptor);
+    MTL::RenderCommandEncoder *imguiRenderCommandEncoder =
+        metalCommandBuffer->renderCommandEncoder(renderPassDescriptor);
 
-    // ImGui rendering starts here
+    // Start ImGui frame
     ImGui_ImplMetal_NewFrame(renderPassDescriptor);
     ImGui_ImplSDL2_NewFrame();
-
-    ImGuiIO &io = ImGui::GetIO();
-
-    float dpiScaleFactor = static_cast<float>(metalDrawable->texture()->width()) / io.DisplaySize.x;
-
     ImGui::NewFrame();
 
-    static bool show_demo_window = true;
-    if (show_demo_window)
-        ImGui::ShowDemoWindow(&show_demo_window);
+    ImGuiIO &io = ImGui::GetIO();
+    float dpiScaleFactor = static_cast<float>(metalDrawable->texture()->width()) / io.DisplaySize.x;
 
-    for (auto renderable : renderables)
+    // Show demo window (optional)
+    static bool showDemoWindow = false;
+    if (showDemoWindow)
+        ImGui::ShowDemoWindow(&showDemoWindow);
+
+    // Renderables window
+    ImGui::Begin("Renderables");
+
+    int index = 0;
+    ImDrawList *drawList = ImGui::GetBackgroundDrawList();
+
+    for (auto &renderable : renderables)
     {
-        glm::vec4 viewport(0, 0, metalDrawable->texture()->width(), metalDrawable->texture()->height());
+        // Get renderable's name or default to "Renderable N"
+        std::string renderableName = "Renderable " + std::to_string(index);
 
-        // Get screen position of the renderable
-        glm::vec2 renderableScreenPosition = camera.WorldToScreen(
-            renderable->getPosition(),
-            camera.GetProjectionMatrix(aspectRatio, nearPlane, farPlane),
-            camera.GetViewMatrix(),
-            viewport);
-
-        // Check if both positions are valid (e.g., the objects are in front of the camera)
-        if (renderableScreenPosition.x != -FLT_MAX && renderableScreenPosition.y != -FLT_MAX)
+        // Create a collapsible header for each renderable
+        if (ImGui::CollapsingHeader(renderableName.c_str()))
         {
+            glm::vec4 viewport(0, 0, metalDrawable->texture()->width(),
+                               metalDrawable->texture()->height());
+
+            // Compute screen position
+            glm::vec2 screenPos = camera.WorldToScreen(
+                renderable->getPosition(),
+                camera.GetProjectionMatrix(aspectRatio),
+                camera.GetViewMatrix(),
+                viewport);
+
+            bool isInFrontOfCamera =
+                (screenPos.x != -FLT_MAX && screenPos.y != -FLT_MAX);
+
             // Apply DPI scaling
-            renderableScreenPosition /= dpiScaleFactor;
+            screenPos /= dpiScaleFactor;
 
-            // Draw the line from the camera to the renderable position using ImGui's DrawList
-            ImDrawList *drawList = ImGui::GetBackgroundDrawList();
-            drawList->AddLine(
-                ImVec2(io.DisplaySize.x / 2, io.DisplaySize.y / 2),
-                ImVec2(renderableScreenPosition.x, renderableScreenPosition.y),
-                IM_COL32(255, 255, 255, 255), // Color: white with full opacity
-                2.0f                          // Thickness
-            );
+            // Draw line and label if in front of the camera
+            if (isInFrontOfCamera)
+            {
+                drawList->AddLine(ImVec2(io.DisplaySize.x / 2, io.DisplaySize.y / 2),
+                                  ImVec2(screenPos.x, screenPos.y),
+                                  IM_COL32(255, 255, 255, 255), 2.0f);
 
-            drawList->AddText(
-                ImVec2(renderableScreenPosition.x, renderableScreenPosition.y),
-                IM_COL32(255, 255, 255, 255),
-                std::string("Renderable").c_str());
+                drawList->AddText(ImVec2(screenPos.x, screenPos.y),
+                                  IM_COL32(255, 255, 255, 255),
+                                  renderableName.c_str());
+            }
+
+            // Display renderable info
+            ImGui::Text("Position: (%.2f, %.2f, %.2f)",
+                        renderable->getPosition().x,
+                        renderable->getPosition().y,
+                        renderable->getPosition().z);
+            ImGui::Text("Status: %s",
+                        isInFrontOfCamera ? "In front of the camera"
+                                          : "Behind the camera or invalid");
+
+            // Teleport and Look At buttons with unique IDs
+            if (ImGui::Button(("Teleport##" + std::to_string(index)).c_str()))
+            {
+                camera.Teleport(renderable->getPosition());
+            }
+            ImGui::SameLine();
+            if (ImGui::Button(("Look At##" + std::to_string(index)).c_str()))
+            {
+                camera.LookAt(renderable->getPosition());
+            }
         }
-        else
-        {
-            // If positions are invalid (object behind the camera), don't draw
-            ImGui::Text("Object is behind the camera or invalid.");
-        }
-
-        // Optionally, print the screen position for debugging
-        ImGui::Text("Screen Position: (%f, %f)", renderableScreenPosition.x, renderableScreenPosition.y);
+        index++;
     }
 
-    // Output the screen size for reference
-    ImGui::Text("Screen Size: (%lu, %lu)", metalDrawable->texture()->width(), metalDrawable->texture()->height());
-    ImGui::Text("ImGui Display Size: (%f, %f)", io.DisplaySize.x, io.DisplaySize.y);
-    ImGui::Text("Camera Position: (%f, %f, %f)", camera.GetPosition().x, camera.GetPosition().y, camera.GetPosition().z);
-    ImGui::Text("DPI Scale Factor: %f", dpiScaleFactor);
+    ImGui::End();
 
-    // teleport the camera to coordinates (imgui input and teleport button)
-    static float teleportX = 490.000f;
-    static float teleportY = -281.000f;
-    static float teleportZ = -4387.000;
+    // Camera controls window
+    ImGui::Begin("Camera Controls");
 
-    ImGui::InputFloat("Teleport X", &teleportX);
-    ImGui::InputFloat("Teleport Y", &teleportY);
-    ImGui::InputFloat("Teleport Z", &teleportZ);
+    ImGui::Text("Screen Size: (%lu, %lu)",
+                metalDrawable->texture()->width(),
+                metalDrawable->texture()->height());
+    ImGui::Text("ImGui Display Size: (%.0f, %.0f)",
+                io.DisplaySize.x, io.DisplaySize.y);
+    ImGui::Text("Camera Position: (%.2f, %.2f, %.2f)",
+                camera.GetPosition().x,
+                camera.GetPosition().y,
+                camera.GetPosition().z);
+    ImGui::Text("DPI Scale Factor: %.2f", dpiScaleFactor);
 
-    if (ImGui::Button("Teleport"))
+    // Teleport input fields
+    static float teleportCoords[3] = {490.0f, -281.0f, -4387.0f};
+    ImGui::InputFloat3("Teleport Coordinates", teleportCoords);
+
+    if (ImGui::Button("Teleport##Camera"))
     {
-        camera.Teleport(glm::vec3(teleportX, teleportY, teleportZ));
+        camera.Teleport(glm::vec3(teleportCoords[0], teleportCoords[1], teleportCoords[2]));
     }
 
+    ImGui::End();
+
+    // Render ImGui draw data
     ImGui::Render();
-    ImDrawData *draw_data = ImGui::GetDrawData();
+    ImDrawData *drawData = ImGui::GetDrawData();
+    ImGui_ImplMetal_RenderDrawData(drawData, metalCommandBuffer, imguiRenderCommandEncoder);
 
-    // Render ImGui draw data using the ImGui encoder
-    ImGui_ImplMetal_RenderDrawData(draw_data, metalCommandBuffer, imguiRenderCommandEncoder);
-
-    // End the ImGui render encoding
+    // End encoding
     imguiRenderCommandEncoder->endEncoding();
-
     imguiRenderCommandEncoder->release();
 }
 
@@ -475,13 +503,8 @@ void Engine::Run()
     const double fixedTimeStep = 1.0 / 60.0; // 60 updates per second
     double accumulator = 0.0;
 
-    bool mouseButtonDown = false;
     int windowWidth, windowHeight;
     SDL_GetWindowSize(window, &windowWidth, &windowHeight);
-
-    // Variables for mouse delta calculation
-    int lastMouseX = 0, lastMouseY = 0;
-    bool firstMouse = true;
 
     while (running)
     {
@@ -504,55 +527,30 @@ void Engine::Run()
             {
                 if (!ImGui::GetIO().WantCaptureMouse)
                 {
-                    mouseButtonDown = true;
-                    SDL_GetMouseState(&lastMouseX, &lastMouseY);
-                    firstMouse = true;
+                    int x, y;
+                    SDL_GetMouseState(&x, &y);
+                    camera.OnMouseButtonDown(x, y);
                 }
             }
             else if (event.type == SDL_MOUSEBUTTONUP && event.button.button == SDL_BUTTON_LEFT)
             {
-                mouseButtonDown = false;
+                camera.OnMouseButtonUp();
             }
         }
 
         // Mouse motion for camera look (click-and-drag)
-        if (mouseButtonDown && !ImGui::GetIO().WantCaptureMouse)
+        if (!ImGui::GetIO().WantCaptureMouse)
         {
             int mouseX, mouseY;
             SDL_GetMouseState(&mouseX, &mouseY);
-
-            if (firstMouse)
-            {
-                lastMouseX = mouseX;
-                lastMouseY = mouseY;
-                firstMouse = false;
-            }
-
-            float xoffset = mouseX - lastMouseX;
-            float yoffset = lastMouseY - mouseY; // Reversed since y-coordinates go from bottom to top
-
-            lastMouseX = mouseX;
-            lastMouseY = mouseY;
-
-            camera.ProcessMouseMovement(xoffset, yoffset);
+            camera.OnMouseMove(mouseX, mouseY);
         }
 
         // Camera movement (smooth and frame-rate independent)
-        const Uint8 *state = SDL_GetKeyboardState(NULL);
         if (!ImGui::GetIO().WantCaptureKeyboard)
         {
-            if (state[SDL_SCANCODE_W])
-                camera.ProcessKeyboard(FORWARD, (float)deltaTime);
-            if (state[SDL_SCANCODE_S])
-                camera.ProcessKeyboard(BACKWARD, (float)deltaTime);
-            if (state[SDL_SCANCODE_A])
-                camera.ProcessKeyboard(LEFT, (float)deltaTime);
-            if (state[SDL_SCANCODE_D])
-                camera.ProcessKeyboard(RIGHT, (float)deltaTime);
-            if (state[SDL_SCANCODE_X])
-                camera.ProcessKeyboard(DOWN, (float)deltaTime);
-            if (state[SDL_SCANCODE_SPACE])
-                camera.ProcessKeyboard(UP, (float)deltaTime);
+            const Uint8 *state = SDL_GetKeyboardState(NULL);
+            camera.ProcessKeyboardInput(state, (float)deltaTime);
         }
 
         // Fixed update step
