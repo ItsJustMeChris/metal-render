@@ -16,7 +16,7 @@ public:
 
     void processEvent(SDL_Event *event);
 
-    void render(MTL::CommandBuffer *commandBuffer, MTL::RenderPassDescriptor *renderPassDescriptor, uint32_t screenWidth, uint32_t screenHeight);
+    void render(MTL::CommandBuffer *commandBuffer, MTL::RenderPassDescriptor *renderPassDescriptor);
 
     bool wantsMouseCapture() const;
     bool wantsKeyboardCapture() const;

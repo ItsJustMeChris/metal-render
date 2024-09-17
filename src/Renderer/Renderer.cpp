@@ -227,7 +227,7 @@ void Renderer::render(Camera &camera, ImGuiHandler &imguiHandler)
     MTL::RenderPassColorAttachmentDescriptor *nd = renderPassDescriptor->colorAttachments()->object(0);
     nd->setLoadAction(MTL::LoadActionLoad);
 
-    imguiHandler.render(metalCommandBuffer.get(), renderPassDescriptor.get(), metalDrawable->texture()->width(), metalDrawable->texture()->height());
+    imguiHandler.render(metalCommandBuffer.get(), renderPassDescriptor.get());
 
     metalCommandBuffer->presentDrawable(metalDrawable);
     metalCommandBuffer->commit();

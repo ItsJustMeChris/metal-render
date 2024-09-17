@@ -32,7 +32,7 @@ void ImGuiHandler::processEvent(SDL_Event *event)
     ImGui_ImplSDL2_ProcessEvent(event);
 }
 
-void ImGuiHandler::render(MTL::CommandBuffer *commandBuffer, MTL::RenderPassDescriptor *renderPassDescriptor, uint32_t screenWidth, uint32_t screenHeight)
+void ImGuiHandler::render(MTL::CommandBuffer *commandBuffer, MTL::RenderPassDescriptor *renderPassDescriptor)
 {
     // Pass the correct renderPassDescriptor to ImGui
     ImGui_ImplMetal_NewFrame(renderPassDescriptor);
@@ -45,8 +45,7 @@ void ImGuiHandler::render(MTL::CommandBuffer *commandBuffer, MTL::RenderPassDesc
     ImDrawData *drawData = ImGui::GetDrawData();
 
     // Create a new render command encoder for ImGui
-    MTL::RenderCommandEncoder *imguiRenderCommandEncoder =
-        commandBuffer->renderCommandEncoder(renderPassDescriptor);
+    MTL::RenderCommandEncoder *imguiRenderCommandEncoder = commandBuffer->renderCommandEncoder(renderPassDescriptor);
 
     ImGui_ImplMetal_RenderDrawData(drawData, commandBuffer, imguiRenderCommandEncoder);
 
