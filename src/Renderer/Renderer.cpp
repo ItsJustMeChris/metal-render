@@ -50,7 +50,7 @@ void Renderer::initMetal()
     metalLayer->setPixelFormat(MTL::PixelFormatBGRA8Unorm);
 
     // Create pipeline and buffers
-    createRenderPipeline();
+    createRenderPipelines();
     createDepthAndMSAATextures();
 
     LightData lightData;
@@ -100,7 +100,7 @@ void Renderer::resizeDrawable()
     }
 }
 
-void Renderer::createRenderPipeline()
+void Renderer::createRenderPipelines()
 {
     // Create command queue
     metalCommandQueue = device->newCommandQueue();

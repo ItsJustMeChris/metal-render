@@ -27,7 +27,7 @@ public:
 private:
     void initMetal();
     void createDepthAndMSAATextures();
-    void createRenderPipeline();
+    void createRenderPipelines();
     void resizeDrawable();
 
     SDL_MetalView metalView = nullptr;
