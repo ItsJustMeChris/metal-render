@@ -24,14 +24,8 @@ Renderer::~Renderer()
     renderPassDescriptor.reset();
     lightBuffer.reset();
 
-    if (metalDefaultLibrary)
-        metalDefaultLibrary->release();
-
     if (metalCommandQueue)
         metalCommandQueue->release();
-
-    if (metalRenderPSO)
-        metalRenderPSO->release();
 
     if (depthStencilState)
         depthStencilState->release();
@@ -40,6 +34,8 @@ Renderer::~Renderer()
         device->release();
 
     renderables.clear();
+
+    delete pipelineManager;
 }
 
 void Renderer::initMetal()
@@ -48,14 +44,10 @@ void Renderer::initMetal()
 
     device = MTL::CreateSystemDefaultDevice();
 
+    pipelineManager = new PipelineManager(device);
+
     metalLayer->setDevice(device);
     metalLayer->setPixelFormat(MTL::PixelFormatBGRA8Unorm);
-
-    // Load renderables
-    renderables.push_back(std::make_unique<Renderable>(device, "bin/Release/assets/teapot.obj", glm::vec3(0.0f, 0.0f, 0.0f)));
-    renderables.push_back(std::make_unique<Renderable>(device, "bin/Release/assets/teapot.obj", glm::vec3(10.0f, 0.0f, 0.0f)));
-    renderables.push_back(std::make_unique<Renderable>(device, "bin/Release/assets/cow.obj", glm::vec3(0.0f, 50.0f, 0.0f)));
-    renderables.push_back(std::make_unique<Renderable>(device, "bin/Release/assets/teddy.obj", glm::vec3(50.0f, 50.0f, 0.0f)));
 
     // Create pipeline and buffers
     createRenderPipeline();
@@ -69,6 +61,12 @@ void Renderer::initMetal()
     lightBuffer.reset(device->newBuffer(&lightData, sizeof(LightData), MTL::ResourceStorageModeShared));
 
     renderPassDescriptor.reset(MTL::RenderPassDescriptor::alloc()->init());
+
+    // Load renderables
+    renderables.push_back(std::make_unique<Renderable>(device, pipelineManager, "standard", "bin/Release/assets/teapot.obj", glm::vec3(0.0f, 0.0f, 0.0f)));
+    renderables.push_back(std::make_unique<Renderable>(device, pipelineManager, "standard", "bin/Release/assets/teapot.obj", glm::vec3(10.0f, 0.0f, 0.0f)));
+    renderables.push_back(std::make_unique<Renderable>(device, pipelineManager, "debug", "bin/Release/assets/cow.obj", glm::vec3(0.0f, 50.0f, 0.0f)));
+    renderables.push_back(std::make_unique<Renderable>(device, pipelineManager, "debug", "bin/Release/assets/teddy.obj", glm::vec3(50.0f, 50.0f, 0.0f)));
 
     setupEventHandlers();
 }
@@ -104,17 +102,6 @@ void Renderer::resizeDrawable()
 
 void Renderer::createRenderPipeline()
 {
-    // Create default library
-    metalDefaultLibrary = device->newDefaultLibrary();
-
-    if (!metalDefaultLibrary)
-    {
-        std::cerr << "Failed to load default library." << std::endl;
-        if (device)
-            device->release();
-        std::exit(-1);
-    }
-
     // Create command queue
     metalCommandQueue = device->newCommandQueue();
     if (!metalCommandQueue)
@@ -123,41 +110,50 @@ void Renderer::createRenderPipeline()
         std::exit(-1);
     }
 
-    // Create render pipeline
-    MTL::Function *vertexShader = metalDefaultLibrary->newFunction(NS::String::string("geometry_VertexShader", NS::ASCIIStringEncoding));
-    assert(vertexShader);
-    MTL::Function *fragmentShader = metalDefaultLibrary->newFunction(NS::String::string("geometry_FragmentShader", NS::ASCIIStringEncoding));
-    assert(fragmentShader);
-
+    // Create a base render pipeline descriptor with common settings
     MTL::RenderPipelineDescriptor *renderPipelineDescriptor = MTL::RenderPipelineDescriptor::alloc()->init();
-    renderPipelineDescriptor->setLabel(NS::String::string("Rendering Pipeline", NS::ASCIIStringEncoding));
-    renderPipelineDescriptor->setVertexFunction(vertexShader);
-    renderPipelineDescriptor->setFragmentFunction(fragmentShader);
-    assert(renderPipelineDescriptor);
+    renderPipelineDescriptor->setLabel(NS::String::string("Base Rendering Pipeline", NS::ASCIIStringEncoding));
 
-    CA::MetalLayer *metalLayer = (CA::MetalLayer *)SDL_Metal_GetLayer(metalView);
-    MTL::PixelFormat pixelFormat = (MTL::PixelFormat)metalLayer->pixelFormat();
+    CA::MetalLayer *metalLayer = static_cast<CA::MetalLayer *>(SDL_Metal_GetLayer(metalView));
+    MTL::PixelFormat pixelFormat = metalLayer->pixelFormat();
     renderPipelineDescriptor->colorAttachments()->object(0)->setPixelFormat(pixelFormat);
     renderPipelineDescriptor->setSampleCount(sampleCount);
     renderPipelineDescriptor->setDepthAttachmentPixelFormat(MTL::PixelFormatDepth32Float);
 
-    NS::Error *error;
-    metalRenderPSO = device->newRenderPipelineState(renderPipelineDescriptor, &error);
-
-    if (!metalRenderPSO)
     {
-        std::cerr << "Failed to create render pipeline state: " << error->localizedDescription()->utf8String() << std::endl;
-        std::exit(-1);
+        printf("Creating standard pipeline\n");
+        MTL::Function *vertexShader = pipelineManager->library->newFunction(NS::String::string("geometry_VertexShader", NS::ASCIIStringEncoding));
+        MTL::Function *fragmentShader = pipelineManager->library->newFunction(NS::String::string("geometry_FragmentShader", NS::ASCIIStringEncoding));
+
+        renderPipelineDescriptor->setVertexFunction(vertexShader);
+        renderPipelineDescriptor->setFragmentFunction(fragmentShader);
+
+        pipelineManager->createPipeline("standard", renderPipelineDescriptor);
+
+        vertexShader->release();
+        fragmentShader->release();
     }
+
+    {
+        MTL::Function *vertexShader = pipelineManager->library->newFunction(NS::String::string("debug_geometry_VertexShader", NS::ASCIIStringEncoding));
+        MTL::Function *fragmentShader = pipelineManager->library->newFunction(NS::String::string("debug_geometry_FragmentShader", NS::ASCIIStringEncoding));
+
+        renderPipelineDescriptor->setVertexFunction(vertexShader);
+        renderPipelineDescriptor->setFragmentFunction(fragmentShader);
+
+        pipelineManager->createPipeline("debug", renderPipelineDescriptor);
+
+        vertexShader->release();
+        fragmentShader->release();
+    }
+
+    renderPipelineDescriptor->release();
 
     MTL::DepthStencilDescriptor *depthStencilDescriptor = MTL::DepthStencilDescriptor::alloc()->init();
     depthStencilDescriptor->setDepthCompareFunction(MTL::CompareFunctionLess);
     depthStencilDescriptor->setDepthWriteEnabled(true);
     depthStencilState = device->newDepthStencilState(depthStencilDescriptor);
-
-    renderPipelineDescriptor->release();
-    vertexShader->release();
-    fragmentShader->release();
+    depthStencilDescriptor->release();
 }
 
 void Renderer::createDepthAndMSAATextures()
@@ -243,6 +239,6 @@ void Renderer::drawRenderables(MTL::RenderCommandEncoder *renderCommandEncoder, 
 
     for (const auto &renderable : renderables)
     {
-        renderable->draw(metalLayer, camera, renderCommandEncoder, metalRenderPSO, depthStencilState);
+        renderable->draw(metalLayer, camera, renderCommandEncoder, depthStencilState);
     }
 }

@@ -8,6 +8,7 @@
 #include <vector>
 #include "Renderable.hpp"
 #include "Camera.hpp"
+#include "PipelineManager.hpp"
 
 class Renderer
 {
@@ -32,9 +33,7 @@ private:
     SDL_MetalView metalView = nullptr;
     MTL::Device* device = nullptr;
     CA::MetalDrawable* metalDrawable = nullptr;
-    MTL::Library* metalDefaultLibrary = nullptr;
     MTL::CommandQueue* metalCommandQueue = nullptr;
-    MTL::RenderPipelineState* metalRenderPSO = nullptr;
     MTL::DepthStencilState* depthStencilState = nullptr;
 
     std::unique_ptr<MTL::CommandBuffer, void(*)(MTL::CommandBuffer*)> metalCommandBuffer;
@@ -46,6 +45,9 @@ private:
 
     int sampleCount = 4;
     std::vector<std::unique_ptr<Renderable>> renderables;
+
+    // Add a pointer to the PipelineManager
+    PipelineManager* pipelineManager;
 
     void drawRenderables(MTL::RenderCommandEncoder* renderEncoder, Camera& camera);
     void setupEventHandlers();

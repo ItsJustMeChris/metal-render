@@ -2,11 +2,15 @@
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "tiny_obj_loader.h"
 
-Renderable::Renderable(MTL::Device *device, const std::string &objFilePath, const glm::vec3 &position, const simd::float4 color)
-    : device(device), modelMatrix(glm::mat4(1.0f))
+Renderable::Renderable(MTL::Device *device, PipelineManager *pipelineManager, const std::string &pipelineName, const std::string &objFilePath, const glm::vec3 &position, const simd::float4 color)
+    : device(device), modelMatrix(glm::mat4(1.0f)), position(position), color(color)
 {
-    this->position = position;
-    this->color = color;
+    // Get the pipeline state from the PipelineManager
+    pipelineState = pipelineManager->getPipeline(pipelineName);
+    if (!pipelineState)
+    {
+        std::cerr << "Failed to get pipeline state: " << pipelineName << std::endl;
+    }
 
     loadOBJ(objFilePath);
     createBuffers();
@@ -129,7 +133,7 @@ void Renderable::createBuffers()
     transformBuffer = device->newBuffer(sizeof(TransformationData), MTL::ResourceStorageModeShared);
 }
 
-void Renderable::draw(CA::MetalLayer *metalLayer, Camera &camera, MTL::RenderCommandEncoder *renderCommandEncoder, MTL::RenderPipelineState *metalRenderPSO, MTL::DepthStencilState *depthStencilState)
+void Renderable::draw(CA::MetalLayer *metalLayer, Camera &camera, MTL::RenderCommandEncoder *renderCommandEncoder, MTL::DepthStencilState *depthStencilState)
 {
     // Model matrix: simple translation
     glm::mat4 modelMatrix = glm::translate(glm::mat4(1.0f), position);
@@ -149,7 +153,7 @@ void Renderable::draw(CA::MetalLayer *metalLayer, Camera &camera, MTL::RenderCom
     renderCommandEncoder->setFrontFacingWinding(MTL::WindingCounterClockwise);
     // renderCommandEncoder->setCullMode(MTL::CullModeBack);
     // renderCommandEncoder->setTriangleFillMode(MTL::TriangleFillModeLines);
-    renderCommandEncoder->setRenderPipelineState(metalRenderPSO);
+    renderCommandEncoder->setRenderPipelineState(pipelineState);
     renderCommandEncoder->setDepthStencilState(depthStencilState);
 
     // Set vertex buffers

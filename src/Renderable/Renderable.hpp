@@ -8,6 +8,7 @@
 #include <simd/simd.h>
 #include <iostream>
 #include "Camera.hpp"
+#include "PipelineManager.hpp"
 
 struct VertexData
 {
@@ -33,16 +34,17 @@ struct LightData
 class Renderable
 {
 public:
-    Renderable(MTL::Device *device, const std::string &objFilePath, const glm::vec3 &position = glm::vec3(0.0f, 0.0f, 0.0f), const simd::float4 color = {0.5f, 0.5f, 0.5f, .3f});
+    Renderable(MTL::Device *device, PipelineManager *pipelineManager, const std::string &pipelineName, const std::string &objFilePath, const glm::vec3 &position = glm::vec3(0.0f), const simd::float4 color = {0.5f, 0.5f, 0.5f, .3f});
     ~Renderable();
 
-    void draw(CA::MetalLayer *metalLayer, Camera &camera, MTL::RenderCommandEncoder *renderCommandEncoder, MTL::RenderPipelineState *metalRenderPSO, MTL::DepthStencilState *depthStencilState);
+    void draw(CA::MetalLayer *metalLayer, Camera &camera, MTL::RenderCommandEncoder *renderCommandEncoder, MTL::DepthStencilState *depthStencilState);
     glm::vec3 getPosition() const { return position; }
 
 private:
     MTL::Device *device;
     MTL::Buffer *vertexBuffer;
     MTL::Buffer *transformBuffer;
+    MTL::RenderPipelineState *pipelineState; // Store the pipeline state
     std::vector<VertexData> vertices;
     NS::UInteger vertexCount;
 
