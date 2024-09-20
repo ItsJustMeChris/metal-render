@@ -10,3 +10,11 @@ obj/*
 
 .DS_Store
 imgui.ini
+
+# all ds_store files everywhere
+**/.DS_Store
+**/.DS_Store?
+
+# all imgui.ini files everywhere
+**/imgui.ini
+
