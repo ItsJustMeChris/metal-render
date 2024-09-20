@@ -53,6 +53,13 @@ void ImGuiHandler::render(MTL::CommandBuffer *commandBuffer, MTL::RenderPassDesc
     imguiRenderCommandEncoder->release();
 }
 
+bool LIGHT_FROM_CAMERA = false;
+
+simd::float3 FROM_GLM(glm::vec3 v)
+{
+    return simd::float3{v.x, v.y, v.z};
+}
+
 void ImGuiHandler::drawInterface()
 {
     // Obtain references to required engine components
@@ -153,6 +160,17 @@ void ImGuiHandler::drawInterface()
 
         ImGui::Text("Light Color");
         ImGui::ColorEdit3("Color", (float *)&data.lightColor);
+
+        if (LIGHT_FROM_CAMERA)
+        {
+            glm::vec3 cameraPosition = camera->GetPosition();
+            glm::vec3 cameraDirection = camera->GetFront();
+            glm::vec3 lightDirection = cameraDirection;
+
+            data.lightDirection = FROM_GLM(-lightDirection);
+        }
+
+        ImGui::Checkbox("Light from Camera", &LIGHT_FROM_CAMERA);
 
         ImGui::End();
     }
