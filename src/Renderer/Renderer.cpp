@@ -40,6 +40,21 @@ Renderer::~Renderer()
     delete pipelineManager;
 }
 
+glm::vec3 Renderer::TraceLine(const glm::vec3 &origin, const glm::vec3 &destination)
+{
+    // Cast a ray between the origin and destination and test if it intersects with any objects in the scene (renderables) and return the intersection point if it does
+    for (const auto &renderable : renderables)
+    {
+        if (auto intersection = renderable->intersect(origin, destination))
+        {
+            printf("Intersection found at (%f, %f, %f)\n", intersection.value().x, intersection.value().y, intersection.value().z);
+            return intersection.value();
+        }
+    }
+
+    return glm::vec3(0.0f, 0.0f, 0.0f);
+}
+
 void Renderer::initMetal()
 {
     CA::MetalLayer *metalLayer = static_cast<CA::MetalLayer *>(SDL_Metal_GetLayer(metalView));

@@ -190,3 +190,92 @@ void Model::calculateNormals(std::vector<VertexData> &vertices, const std::vecto
         vertex.normal = simd::normalize(vertex.normal);
     }
 }
+
+bool Model::rayIntersectsTriangle(const glm::vec3 &orig, const glm::vec3 &dir,
+                                  const glm::vec3 &v0, const glm::vec3 &v1, const glm::vec3 &v2,
+                                  float &t)
+{
+    const float EPSILON = 1e-8f;
+    glm::vec3 edge1 = v1 - v0;
+    glm::vec3 edge2 = v2 - v0;
+    glm::vec3 h = glm::cross(dir, edge2);
+    float a = glm::dot(edge1, h);
+
+    if (a > -EPSILON && a < EPSILON)
+        return false; // Ray is parallel to triangle.
+
+    float f = 1.0f / a;
+    glm::vec3 s = orig - v0;
+    float u = f * glm::dot(s, h);
+
+    if (u < 0.0f || u > 1.0f)
+        return false;
+
+    glm::vec3 q = glm::cross(s, edge1);
+    float v = f * glm::dot(dir, q);
+
+    if (v < 0.0f || u + v > 1.0f)
+        return false;
+
+    t = f * glm::dot(edge2, q);
+
+    if (t > EPSILON)
+        return true;
+
+    return false;
+}
+
+std::optional<glm::vec3> Model::intersect(const glm::vec3 &origin, const glm::vec3 &destination)
+{
+    glm::vec3 direction = glm::normalize(destination - origin);
+    float maxDistance = glm::length(destination - origin);
+
+    float closestT = std::numeric_limits<float>::max();
+    glm::vec3 closestIntersection;
+    bool hasIntersection = false;
+
+    for (const auto &mesh : meshes)
+    {
+        const VertexData *vertices = mesh->getVertices();
+        size_t vertexCount = mesh->getVertexCount();
+        const uint32_t *indices = mesh->getIndices();
+        size_t indexCount = mesh->getIndexCount();
+
+        // Loop over triangles
+        for (size_t i = 0; i < indexCount; i += 3)
+        {
+            uint32_t idx0 = indices[i + 0];
+            uint32_t idx1 = indices[i + 1];
+            uint32_t idx2 = indices[i + 2];
+
+            const simd::float4 &v0 = vertices[idx0].position;
+            const simd::float4 &v1 = vertices[idx1].position;
+            const simd::float4 &v2 = vertices[idx2].position;
+
+            glm::vec3 p0(v0[0], v0[1], v0[2]);
+            glm::vec3 p1(v1[0], v1[1], v1[2]);
+            glm::vec3 p2(v2[0], v2[1], v2[2]);
+
+            float t = 0.0f;
+
+            if (rayIntersectsTriangle(origin, direction, p0, p1, p2, t))
+            {
+                if (t >= 0.0f && t <= maxDistance && t < closestT)
+                {
+                    closestT = t;
+                    closestIntersection = origin + t * direction;
+                    hasIntersection = true;
+                }
+            }
+        }
+    }
+
+    if (hasIntersection)
+    {
+        return closestIntersection;
+    }
+    else
+    {
+        return std::nullopt;
+    }
+}

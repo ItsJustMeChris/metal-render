@@ -34,6 +34,7 @@ public:
 
     void setPosition(const glm::vec3 &newPosition);
     std::string name;
+    std::optional<glm::vec3> intersect(const glm::vec3 &origin, const glm::vec3 &destination);
 
 private:
     MTL::Device *device;

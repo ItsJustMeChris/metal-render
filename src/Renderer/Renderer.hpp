@@ -38,6 +38,8 @@ public:
 
     Renderable *sunRenderable = nullptr;
 
+    glm::vec3 TraceLine(const glm::vec3 &origin, const glm::vec3 &destination);
+
 private:
     void initMetal();
     void createDepthAndMSAATextures();

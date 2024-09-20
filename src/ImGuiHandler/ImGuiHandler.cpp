@@ -53,6 +53,11 @@ void ImGuiHandler::render(MTL::CommandBuffer *commandBuffer, MTL::RenderPassDesc
     imguiRenderCommandEncoder->release();
 }
 
+glm::vec3 Start = {0.0f, 0.0f, 0.0f};
+glm::vec3 End = {0.0f, 0.0f, 0.0f};
+
+glm::vec3 intersection = {0.0f, 0.0f, 0.0f};
+
 void ImGuiHandler::drawInterface()
 {
     // Obtain references to required engine components
@@ -64,6 +69,13 @@ void ImGuiHandler::drawInterface()
     float dpiScaleFactor = engine->getRenderer()->dimensions().x / io.DisplaySize.x;
 
     ImDrawList *drawList = ImGui::GetBackgroundDrawList();
+
+    {
+        // Cross Hair
+        ImVec2 center = ImVec2(io.DisplaySize.x / 2, io.DisplaySize.y / 2);
+        drawList->AddLine(ImVec2(center.x - 10, center.y), ImVec2(center.x + 10, center.y), IM_COL32(255, 255, 255, 255), 2.0f);
+        drawList->AddLine(ImVec2(center.x, center.y - 10), ImVec2(center.x, center.y + 10), IM_COL32(255, 255, 255, 255), 2.0f);
+    }
 
     {
         ImGui::Begin("Renderables");
@@ -157,6 +169,54 @@ void ImGuiHandler::drawInterface()
 
         ImGui::Text("Light Color");
         ImGui::ColorEdit3("Color", (float *)&data.lightColor);
+
+        ImGui::End();
+    }
+
+    {
+        ImGui::Begin("Ray Tracing");
+
+        Start = camera->GetPosition();
+        End = camera->GetPosition() + camera->GetFront() * 100.0f;
+
+        ImGui::Text("Start: (%.2f, %.2f, %.2f)", Start.x, Start.y, Start.z);
+
+        intersection = engine->getRenderer()->TraceLine(Start, End);
+
+        ImGui::Text("Intersection: (%.2f, %.2f, %.2f)", intersection.x, intersection.y, intersection.z);
+
+        if (intersection.x != 0)
+        {
+            glm::vec4 viewport = engine->getRenderer()->viewport();
+            glm::vec2 screenPosStart = camera->WorldToScreen(
+                Start,
+                camera->GetProjectionMatrix(aspectRatio),
+                camera->GetViewMatrix(),
+                viewport);
+
+            glm::vec2 screenPosEnd = camera->WorldToScreen(
+                End,
+                camera->GetProjectionMatrix(aspectRatio),
+                camera->GetViewMatrix(),
+                viewport);
+
+            glm::vec2 screenPosIntersection = camera->WorldToScreen(
+                intersection,
+                camera->GetProjectionMatrix(aspectRatio),
+                camera->GetViewMatrix(),
+                viewport);
+
+            screenPosStart /= dpiScaleFactor;
+            screenPosEnd /= dpiScaleFactor;
+            screenPosIntersection /= dpiScaleFactor;
+
+            // drawList->AddLine(ImVec2(screenPosStart.x, screenPosStart.y), ImVec2(screenPosIntersection.x, screenPosIntersection.y), IM_COL32(0, 255, 0, 255), 2.0f);
+            // drawList->AddLine(ImVec2(screenPosIntersection.x, screenPosIntersection.y), ImVec2(screenPosEnd.x, screenPosEnd.y), IM_COL32(255, 0, 0, 255), 2.0f);
+
+            drawList->AddText(ImVec2(screenPosIntersection.x, screenPosIntersection.y),
+                              IM_COL32(255, 255, 255, 255),
+                              "Intersection");
+        }
 
         ImGui::End();
     }

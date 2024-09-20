@@ -45,3 +45,23 @@ void Mesh::draw(MTL::RenderCommandEncoder *encoder)
 
     encoder->drawIndexedPrimitives(MTL::PrimitiveType::PrimitiveTypeTriangle, indexCount, MTL::IndexType::IndexTypeUInt32, indexBuffer, 0);
 }
+
+const VertexData *Mesh::getVertices() const
+{
+    return static_cast<const VertexData *>(vertexBuffer->contents());
+}
+
+size_t Mesh::getVertexCount() const
+{
+    return vertexBuffer->length() / sizeof(VertexData);
+}
+
+const uint32_t *Mesh::getIndices() const
+{
+    return static_cast<const uint32_t *>(indexBuffer->contents());
+}
+
+size_t Mesh::getIndexCount() const
+{
+    return indexBuffer->length() / sizeof(uint32_t);
+}
