@@ -18,3 +18,5 @@ imgui.ini
 # all imgui.ini files everywhere
 **/imgui.ini
 
+*.ini
+.DS_Store
