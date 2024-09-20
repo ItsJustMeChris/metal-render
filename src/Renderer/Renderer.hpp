@@ -15,7 +15,7 @@ class Engine;
 struct LightData
 {
     simd::float3 ambientColor;
-    simd::float3 lightDirection;
+    simd::float3 lightPosition;
     simd::float3 lightColor;
 } __attribute__((aligned(16)));
 
@@ -35,6 +35,8 @@ public:
 
     Engine *engine;
     LightData lightData;
+
+    Renderable *sunRenderable = nullptr;
 
 private:
     void initMetal();

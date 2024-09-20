@@ -56,11 +56,10 @@ void Renderer::initMetal()
     createDepthAndMSAATextures();
 
     lightData = {};
-    lightData.ambientColor = simd::float3{0.1f, 0.1f, 0.1f};                    // Set ambient light
-    lightData.lightDirection = simd::normalize(simd::float3{1.0f, 1.0f, 1.0f}); // Normalize direction
-    lightData.lightColor = simd::float3{1.f, 1.f, 1.f};                        // Slightly dimmer light
+    lightData.ambientColor = simd::float3{0.1f, 0.1f, 0.1f};
+    lightData.lightColor = simd::float3{1.f, 1.f, 1.f};
 
-    lightBuffer.reset(device->newBuffer(&lightData, sizeof(LightData), MTL::ResourceStorageModeShared));
+    lightBuffer.reset(device->newBuffer(sizeof(LightData), MTL::ResourceStorageModeShared));
 
     renderPassDescriptor.reset(MTL::RenderPassDescriptor::alloc()->init());
 
@@ -69,15 +68,23 @@ void Renderer::initMetal()
     auto teddyModel = std::make_shared<Model>(device, "bin/Release/assets/teddy.obj");
     auto capsuleModel = std::make_shared<Model>(device, "bin/Release/assets/capsule/capsule.obj");
     auto smgModel = std::make_shared<Model>(device, "bin/Release/assets/SMG/smg.obj");
-    auto backpack = std::make_shared<Model>(device, "bin/Release/assets/backpack/backpack.obj");
+    auto backpackModel = std::make_shared<Model>(device, "bin/Release/assets/backpack/backpack.obj");
+    auto sunModel = std::make_shared<Model>(device, "bin/Release/assets/Beach_Ball_v2_L3.123cdf1ec704-c7ca-4faf-8f47-647b6e5df698/13517_Beach_Ball_v2_L3.obj");
 
     renderables.push_back(std::make_unique<Renderable>(device, this->engine, pipelineManager, "standard", teapotModel, glm::vec3(0.0f, 0.0f, 0.0f)));
     renderables.push_back(std::make_unique<Renderable>(device, this->engine, pipelineManager, "standard", teapotModel, glm::vec3(10.0f, 0.0f, 0.0f)));
     renderables.push_back(std::make_unique<Renderable>(device, this->engine, pipelineManager, "standard", capsuleModel, glm::vec3(10.0f, 10.0f, 0.0f)));
     renderables.push_back(std::make_unique<Renderable>(device, this->engine, pipelineManager, "standard", smgModel, glm::vec3(10.0f, 10.0f, 10.0f)));
-    renderables.push_back(std::make_unique<Renderable>(device, this->engine, pipelineManager, "standard", backpack, glm::vec3(0.0f, 20.0f, 10.0f)));
+    renderables.push_back(std::make_unique<Renderable>(device, this->engine, pipelineManager, "standard", backpackModel, glm::vec3(0.0f, 20.0f, 10.0f)));
     // renderables.push_back(std::make_unique<Renderable>(device, this->engine, pipelineManager, "debug", cowModel, glm::vec3(0.0f, 50.0f, 0.0f)));
     // renderables.push_back(std::make_unique<Renderable>(device, this->engine, pipelineManager, "debug", teddyModel, glm::vec3(50.0f, 50.0f, 0.0f)));
+
+    auto sun = std::make_unique<Renderable>(
+        device, this->engine, pipelineManager, "standard", sunModel,
+        glm::vec3(30.0f, 30.0f, 0.0f), "Sun");
+
+    sunRenderable = sun.get();
+    renderables.push_back(std::move(sun));
 
     setupEventHandlers();
 }
@@ -228,7 +235,14 @@ void Renderer::render(Camera &camera, ImGuiHandler &imguiHandler)
 
     renderCommandEncoder->setDepthStencilState(depthStencilState);
 
-    lightBuffer.reset(device->newBuffer(&lightData, sizeof(LightData), MTL::ResourceStorageModeShared));
+    if (sunRenderable)
+    {
+        glm::vec3 sunPos = sunRenderable->getPosition();
+        lightData.lightPosition = simd::float3{sunPos.x, sunPos.y, sunPos.z};
+    }
+
+    memcpy(lightBuffer->contents(), &lightData, sizeof(LightData));
+
     renderCommandEncoder->setFragmentBuffer(lightBuffer.get(), 0, 1);
 
     drawRenderables(renderCommandEncoder, camera);

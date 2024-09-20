@@ -53,13 +53,6 @@ void ImGuiHandler::render(MTL::CommandBuffer *commandBuffer, MTL::RenderPassDesc
     imguiRenderCommandEncoder->release();
 }
 
-bool LIGHT_FROM_CAMERA = false;
-
-simd::float3 FROM_GLM(glm::vec3 v)
-{
-    return simd::float3{v.x, v.y, v.z};
-}
-
 void ImGuiHandler::drawInterface()
 {
     // Obtain references to required engine components
@@ -79,7 +72,7 @@ void ImGuiHandler::drawInterface()
 
         for (auto &renderable : renderables)
         {
-            std::string renderableName = "Renderable " + std::to_string(index);
+            std::string renderableName = renderable->name + " (" + std::to_string(index) + ")";
 
             if (ImGui::CollapsingHeader(renderableName.c_str()))
             {
@@ -124,6 +117,13 @@ void ImGuiHandler::drawInterface()
                 {
                     camera->LookAt(renderable->getPosition());
                 }
+
+                glm::vec3 position = renderable->getPosition();
+                float pos[3] = {position.x, position.y, position.z};
+                if (ImGui::DragFloat3(("Position##" + std::to_string(index)).c_str(), pos, 0.1f))
+                {
+                    renderable->setPosition(glm::vec3(pos[0], pos[1], pos[2]));
+                }
             }
             index++;
         }
@@ -155,22 +155,8 @@ void ImGuiHandler::drawInterface()
         LightData &data = engine->getRenderer()->lightData;
         ImGui::ColorEdit3("Ambient Light", (float *)&data.ambientColor);
 
-        ImGui::Text("Light Direction");
-        ImGui::SliderFloat3("Direction", (float *)&data.lightDirection, -1.0f, 1.0f);
-
         ImGui::Text("Light Color");
         ImGui::ColorEdit3("Color", (float *)&data.lightColor);
-
-        if (LIGHT_FROM_CAMERA)
-        {
-            glm::vec3 cameraPosition = camera->GetPosition();
-            glm::vec3 cameraDirection = camera->GetFront();
-            glm::vec3 lightDirection = cameraDirection;
-
-            data.lightDirection = FROM_GLM(-lightDirection);
-        }
-
-        ImGui::Checkbox("Light from Camera", &LIGHT_FROM_CAMERA);
 
         ImGui::End();
     }

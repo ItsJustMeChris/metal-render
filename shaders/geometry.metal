@@ -15,7 +15,7 @@ struct TransformationData {
 
 struct LightData {
     float3 ambientColor;
-    float3 lightDirection;
+    float3 lightPosition;
     float3 lightColor;
 };
 
@@ -57,12 +57,19 @@ fragment float4 geometry_FragmentShader(
     texture2d<float> diffuseTexture [[texture(0)]],
     sampler textureSampler [[sampler(0)]]
 ) {
-    // Normalize inputs
     float3 normal = normalize(in.normal);
-    float3 lightDir = normalize(lightData.lightDirection);
 
-    // Ambient component with reduced strength
-    float ambientStrength = 0.1; // Reduce this to make dark areas more pronounced
+    float3 lightDir = lightData.lightPosition - in.fragPos;
+    float distance = length(lightDir);
+    lightDir = normalize(lightDir);
+
+    float constantAttenuation = 1.0;
+    float linearAttenuation = 0.001;  // Reduce this to make light falloff less drastic
+    float quadraticAttenuation = 0.0001;  // Lower this even more for smooth falloff
+    float attenuation = 1.0 / (constantAttenuation + linearAttenuation * distance + quadraticAttenuation * (distance * distance));
+
+    // Ambient component
+    float ambientStrength = 0.3;
     float3 ambient = lightData.ambientColor * material.ambient * ambientStrength;
 
     // Diffuse component
@@ -72,17 +79,17 @@ fragment float4 geometry_FragmentShader(
         float4 texColor = diffuseTexture.sample(textureSampler, in.texcoord);
         diffuseColor *= texColor.rgb;
     }
-    float3 diffuse = lightData.lightColor * diffuseColor * NdotL;
+    float3 diffuse = lightData.lightColor * diffuseColor * NdotL * attenuation;
 
     // Specular component
-    float3 viewDir = normalize(-in.fragPos); // Assuming camera at origin
+    float3 viewDir = normalize(-in.fragPos);
     float3 reflectDir = reflect(-lightDir, normal);
     float spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
-    float3 specular = lightData.lightColor * material.specular * spec;
+    float3 specular = lightData.lightColor * material.specular * spec * attenuation;
 
     // Combine components
     float3 finalColor = ambient + diffuse + specular;
-    finalColor = min(finalColor, float3(1.0)); // Ensure color stays within [0,1]
+    finalColor = min(finalColor, float3(1.0)); 
 
     return float4(finalColor, 1.0);
 }

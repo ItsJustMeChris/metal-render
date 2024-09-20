@@ -24,13 +24,16 @@ struct TransformationData
 class Renderable
 {
 public:
-    Renderable(MTL::Device *device, Engine *engine, PipelineManager *pipelineManager, const std::string &pipelineName, std::shared_ptr<Model> model, const glm::vec3 &position = glm::vec3(0.0f), const simd::float4 &color = {0.5f, 0.5f, 0.5f, 1.0f});
+    Renderable(MTL::Device *device, Engine *engine, PipelineManager *pipelineManager, const std::string &pipelineName, std::shared_ptr<Model> model, const glm::vec3 &position = glm::vec3(0.0f), const std::string &name = "Renderable");
     ~Renderable();
 
     void draw(Camera &camera, MTL::RenderCommandEncoder *renderCommandEncoder, MTL::DepthStencilState *depthStencilState);
     glm::vec3 getPosition() const { return position; }
 
     Engine *engine;
+
+    void setPosition(const glm::vec3 &newPosition);
+    std::string name;
 
 private:
     MTL::Device *device;
@@ -40,8 +43,6 @@ private:
     std::shared_ptr<Model> model;
     glm::mat4 modelMatrix;
     glm::vec3 position;
-
-    simd::float4 color;
 
     void createBuffers();
 };
