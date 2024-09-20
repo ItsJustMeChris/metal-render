@@ -55,10 +55,10 @@ void Renderer::initMetal()
     createRenderPipelines();
     createDepthAndMSAATextures();
 
-    LightData lightData;
-    lightData.ambientColor = simd::float3{0.f, 0.f, 0.f};
-    lightData.lightDirection = simd::float3{1.0f, 1.0f, 1.0f};
-    lightData.lightColor = simd::float3{1.0f, 1.0f, 1.0f};
+    lightData = {};
+    lightData.ambientColor = simd::float3{0.1f, 0.1f, 0.1f};                    // Set ambient light
+    lightData.lightDirection = simd::normalize(simd::float3{1.0f, 1.0f, 1.0f}); // Normalize direction
+    lightData.lightColor = simd::float3{1.f, 1.f, 1.f};                        // Slightly dimmer light
 
     lightBuffer.reset(device->newBuffer(&lightData, sizeof(LightData), MTL::ResourceStorageModeShared));
 
@@ -228,6 +228,7 @@ void Renderer::render(Camera &camera, ImGuiHandler &imguiHandler)
 
     renderCommandEncoder->setDepthStencilState(depthStencilState);
 
+    lightBuffer.reset(device->newBuffer(&lightData, sizeof(LightData), MTL::ResourceStorageModeShared));
     renderCommandEncoder->setFragmentBuffer(lightBuffer.get(), 0, 1);
 
     drawRenderables(renderCommandEncoder, camera);

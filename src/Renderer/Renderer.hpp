@@ -34,6 +34,7 @@ public:
     glm::vec2 dimensions() const { return glm::vec2(metalDrawable->texture()->width(), metalDrawable->texture()->height()); }
 
     Engine *engine;
+    LightData lightData;
 
 private:
     void initMetal();

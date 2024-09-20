@@ -61,9 +61,9 @@ fragment float4 geometry_FragmentShader(
     float3 normal = normalize(in.normal);
     float3 lightDir = normalize(lightData.lightDirection);
 
-    // Ambient component with minimum light level
-    float3 minAmbient = float3(0.1); // Adjust this value to set the minimum light level
-    float3 ambient = max(lightData.ambientColor * material.ambient, minAmbient);
+    // Ambient component with reduced strength
+    float ambientStrength = 0.1; // Reduce this to make dark areas more pronounced
+    float3 ambient = lightData.ambientColor * material.ambient * ambientStrength;
 
     // Diffuse component
     float NdotL = max(dot(normal, lightDir), 0.0);
@@ -83,9 +83,6 @@ fragment float4 geometry_FragmentShader(
     // Combine components
     float3 finalColor = ambient + diffuse + specular;
     finalColor = min(finalColor, float3(1.0)); // Ensure color stays within [0,1]
-
-    // Ensure the final color is never completely dark
-    finalColor = max(finalColor, minAmbient);
 
     return float4(finalColor, 1.0);
 }

@@ -65,79 +65,97 @@ void ImGuiHandler::drawInterface()
 
     ImDrawList *drawList = ImGui::GetBackgroundDrawList();
 
-    ImGui::Begin("Renderables");
-
-    int index = 0;
-
-    for (auto &renderable : renderables)
     {
-        std::string renderableName = "Renderable " + std::to_string(index);
+        ImGui::Begin("Renderables");
 
-        if (ImGui::CollapsingHeader(renderableName.c_str()))
+        int index = 0;
+
+        for (auto &renderable : renderables)
         {
-            glm::vec4 viewport = engine->getRenderer()->viewport();
+            std::string renderableName = "Renderable " + std::to_string(index);
 
-            glm::vec2 screenPos = camera->WorldToScreen(
-                renderable->getPosition(),
-                camera->GetProjectionMatrix(aspectRatio),
-                camera->GetViewMatrix(),
-                viewport);
-
-            bool isInFrontOfCamera =
-                (screenPos.x != -FLT_MAX && screenPos.y != -FLT_MAX);
-
-            screenPos /= dpiScaleFactor;
-
-            if (isInFrontOfCamera)
+            if (ImGui::CollapsingHeader(renderableName.c_str()))
             {
-                drawList->AddLine(ImVec2(io.DisplaySize.x / 2, io.DisplaySize.y / 2),
-                                  ImVec2(screenPos.x, screenPos.y),
-                                  IM_COL32(255, 255, 255, 255), 2.0f);
+                glm::vec4 viewport = engine->getRenderer()->viewport();
 
-                drawList->AddText(ImVec2(screenPos.x, screenPos.y),
-                                  IM_COL32(255, 255, 255, 255),
-                                  renderableName.c_str());
-            }
+                glm::vec2 screenPos = camera->WorldToScreen(
+                    renderable->getPosition(),
+                    camera->GetProjectionMatrix(aspectRatio),
+                    camera->GetViewMatrix(),
+                    viewport);
 
-            ImGui::Text("Position: (%.2f, %.2f, %.2f)",
-                        renderable->getPosition().x,
-                        renderable->getPosition().y,
-                        renderable->getPosition().z);
-            ImGui::Text("Status: %s",
-                        isInFrontOfCamera ? "In front of the camera"
-                                          : "Behind the camera or invalid");
+                bool isInFrontOfCamera =
+                    (screenPos.x != -FLT_MAX && screenPos.y != -FLT_MAX);
 
-            if (ImGui::Button(("Teleport##" + std::to_string(index)).c_str()))
-            {
-                camera->Teleport(renderable->getPosition());
+                screenPos /= dpiScaleFactor;
+
+                if (isInFrontOfCamera)
+                {
+                    drawList->AddLine(ImVec2(io.DisplaySize.x / 2, io.DisplaySize.y / 2),
+                                      ImVec2(screenPos.x, screenPos.y),
+                                      IM_COL32(255, 255, 255, 255), 2.0f);
+
+                    drawList->AddText(ImVec2(screenPos.x, screenPos.y),
+                                      IM_COL32(255, 255, 255, 255),
+                                      renderableName.c_str());
+                }
+
+                ImGui::Text("Position: (%.2f, %.2f, %.2f)",
+                            renderable->getPosition().x,
+                            renderable->getPosition().y,
+                            renderable->getPosition().z);
+                ImGui::Text("Status: %s",
+                            isInFrontOfCamera ? "In front of the camera"
+                                              : "Behind the camera or invalid");
+
+                if (ImGui::Button(("Teleport##" + std::to_string(index)).c_str()))
+                {
+                    camera->Teleport(renderable->getPosition());
+                }
+                ImGui::SameLine();
+                if (ImGui::Button(("Look At##" + std::to_string(index)).c_str()))
+                {
+                    camera->LookAt(renderable->getPosition());
+                }
             }
-            ImGui::SameLine();
-            if (ImGui::Button(("Look At##" + std::to_string(index)).c_str()))
-            {
-                camera->LookAt(renderable->getPosition());
-            }
+            index++;
         }
-        index++;
+
+        ImGui::End();
+
+        ImGui::Begin("Camera Controls");
+
+        ImGui::Text("Screen Size: (%f, %f)", engine->getRenderer()->dimensions().x, engine->getRenderer()->dimensions().y);
+        ImGui::Text("ImGui Display Size: (%.0f, %.0f)",
+                    io.DisplaySize.x, io.DisplaySize.y);
+        ImGui::Text("Camera Position: (%.2f, %.2f, %.2f)", camera->GetPosition().x, camera->GetPosition().y, camera->GetPosition().z);
+
+        static float teleportCoords[3] = {490.0f, -281.0f, -4387.0f};
+        ImGui::InputFloat3("Teleport Coordinates", teleportCoords);
+
+        if (ImGui::Button("Teleport##Camera"))
+        {
+            camera->Teleport(glm::vec3(teleportCoords[0], teleportCoords[1], teleportCoords[2]));
+        }
+
+        ImGui::End();
     }
 
-    ImGui::End();
-
-    ImGui::Begin("Camera Controls");
-
-    ImGui::Text("Screen Size: (%f, %f)", engine->getRenderer()->dimensions().x, engine->getRenderer()->dimensions().y);
-    ImGui::Text("ImGui Display Size: (%.0f, %.0f)",
-                io.DisplaySize.x, io.DisplaySize.y);
-    ImGui::Text("Camera Position: (%.2f, %.2f, %.2f)", camera->GetPosition().x, camera->GetPosition().y, camera->GetPosition().z);
-
-    static float teleportCoords[3] = {490.0f, -281.0f, -4387.0f};
-    ImGui::InputFloat3("Teleport Coordinates", teleportCoords);
-
-    if (ImGui::Button("Teleport##Camera"))
     {
-        camera->Teleport(glm::vec3(teleportCoords[0], teleportCoords[1], teleportCoords[2]));
-    }
+        ImGui::Begin("Lighting Controls");
 
-    ImGui::End();
+        ImGui::Text("Ambient Light Color");
+        LightData &data = engine->getRenderer()->lightData;
+        ImGui::ColorEdit3("Ambient Light", (float *)&data.ambientColor);
+
+        ImGui::Text("Light Direction");
+        ImGui::SliderFloat3("Direction", (float *)&data.lightDirection, -1.0f, 1.0f);
+
+        ImGui::Text("Light Color");
+        ImGui::ColorEdit3("Color", (float *)&data.lightColor);
+
+        ImGui::End();
+    }
 }
 
 bool ImGuiHandler::wantsMouseCapture() const
