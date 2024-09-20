@@ -8,9 +8,11 @@ class Texture
 public:
     Texture(const char *filepath, MTL::Device *metalDevice);
     ~Texture();
-    MTL::Texture *texture;
-    int width, height, channels;
+
+    MTL::Texture* getMTLTexture() const { return texture; }
 
 private:
     MTL::Device *device;
+    MTL::Texture *texture = nullptr;
+    int width = 0, height = 0, channels = 0;
 };

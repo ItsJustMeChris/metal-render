@@ -3,53 +3,89 @@ using namespace metal;
 
 struct VertexData {
     float4 position;
-    float4 color;
-    float3 normal; // Add normal to the vertex data
+    float3 normal;
+    float2 texcoord;
 };
 
-struct TransformationData
-{
+struct TransformationData {
     float4x4 modelMatrix;
     float4x4 viewMatrix;
-    float4x4 perspectiveMatrix;
+    float4x4 projectionMatrix;
 };
 
 struct LightData {
     float3 ambientColor;
-    float3 lightDirection; // Direction of the directional light ("sun")
-    float3 lightColor;     // Color of the directional light
+    float3 lightDirection;
+    float3 lightColor;
+};
+
+struct MaterialData {
+    float3 ambient;
+    float3 diffuse;
+    float3 specular;
+    float shininess;
 };
 
 struct VertexOut {
     float4 position [[position]];
-    float4 color;
-    float3 normal; // Pass the normal to the fragment shader
+    float3 normal;
+    float2 texcoord;
+    float3 fragPos;
 };
 
-vertex VertexOut geometry_VertexShader(uint vertexID [[vertex_id]],
-             constant VertexData* vertexData,
-             constant TransformationData* transformationData) {
+vertex VertexOut geometry_VertexShader(
+    uint vertexID [[vertex_id]],
+    constant VertexData* vertexData [[buffer(0)]],
+    constant TransformationData& trans [[buffer(1)]]
+) {
     VertexOut out;
-    out.position = transformationData->perspectiveMatrix * transformationData->viewMatrix * transformationData->modelMatrix * vertexData[vertexID].position;
-    out.color = vertexData[vertexID].color;
+    float4 position = vertexData[vertexID].position;
+    float3 normal = vertexData[vertexID].normal;
 
-    // Transform the normal by the model matrix (ignore translation)
-    out.normal = normalize((float3)(transformationData->modelMatrix * float4(vertexData[vertexID].normal, 0.0f)).xyz);
+    float4 worldPosition = trans.modelMatrix * position;
+    out.position = trans.projectionMatrix * trans.viewMatrix * worldPosition;
+    out.fragPos = worldPosition.xyz;
+    out.normal = normalize((trans.modelMatrix * float4(normal, 0.0)).xyz);
+    out.texcoord = vertexData[vertexID].texcoord;
     return out;
 }
 
-fragment float4 geometry_FragmentShader(VertexOut in [[stage_in]], constant LightData &lightData [[buffer(1)]]) {
-    // Ambient light
-    float3 ambient = lightData.ambientColor;
-
-    // Default diffuse lighting (set low intensity since normals aren't reliable)
+fragment float4 geometry_FragmentShader(
+    VertexOut in [[stage_in]],
+    constant LightData& lightData [[buffer(1)]],
+    constant MaterialData& material [[buffer(2)]],
+    texture2d<float> diffuseTexture [[texture(0)]],
+    sampler textureSampler [[sampler(0)]]
+) {
+    // Normalize inputs
+    float3 normal = normalize(in.normal);
     float3 lightDir = normalize(lightData.lightDirection);
-    float diffuseIntensity = max(dot(in.normal, lightDir), 0.0) * 0.5; // Reduce intensity
-    float3 diffuse = lightData.lightColor * diffuseIntensity;
 
-    // Combine ambient and diffuse lighting
-    float3 finalColor = ambient + diffuse;
+    // Ambient component with minimum light level
+    float3 minAmbient = float3(0.1); // Adjust this value to set the minimum light level
+    float3 ambient = max(lightData.ambientColor * material.ambient, minAmbient);
 
-    // Return the final color, modulated with the vertex color
-    return float4(finalColor * in.color.rgb, in.color.a);
+    // Diffuse component
+    float NdotL = max(dot(normal, lightDir), 0.0);
+    float3 diffuseColor = material.diffuse;
+    if (diffuseTexture.get_width() > 0) {
+        float4 texColor = diffuseTexture.sample(textureSampler, in.texcoord);
+        diffuseColor *= texColor.rgb;
+    }
+    float3 diffuse = lightData.lightColor * diffuseColor * NdotL;
+
+    // Specular component
+    float3 viewDir = normalize(-in.fragPos); // Assuming camera at origin
+    float3 reflectDir = reflect(-lightDir, normal);
+    float spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
+    float3 specular = lightData.lightColor * material.specular * spec;
+
+    // Combine components
+    float3 finalColor = ambient + diffuse + specular;
+    finalColor = min(finalColor, float3(1.0)); // Ensure color stays within [0,1]
+
+    // Ensure the final color is never completely dark
+    finalColor = max(finalColor, minAmbient);
+
+    return float4(finalColor, 1.0);
 }

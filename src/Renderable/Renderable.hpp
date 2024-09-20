@@ -14,7 +14,6 @@
 
 class Engine;
 
-// Transformation data structure
 struct TransformationData
 {
     glm::mat4 modelMatrix;
@@ -25,24 +24,24 @@ struct TransformationData
 class Renderable
 {
 public:
-    Renderable(MTL::Device* device, Engine* engine, PipelineManager* pipelineManager, const std::string& pipelineName, std::shared_ptr<Model> model, const glm::vec3& position = glm::vec3(0.0f), const simd::float4& color = {0.5f, 0.5f, 0.5f, 1.0f});
+    Renderable(MTL::Device *device, Engine *engine, PipelineManager *pipelineManager, const std::string &pipelineName, std::shared_ptr<Model> model, const glm::vec3 &position = glm::vec3(0.0f), const simd::float4 &color = {0.5f, 0.5f, 0.5f, 1.0f});
     ~Renderable();
 
-    void draw(Camera& camera, MTL::RenderCommandEncoder* renderCommandEncoder, MTL::DepthStencilState* depthStencilState);
+    void draw(Camera &camera, MTL::RenderCommandEncoder *renderCommandEncoder, MTL::DepthStencilState *depthStencilState);
     glm::vec3 getPosition() const { return position; }
 
-    Engine* engine;
+    Engine *engine;
 
 private:
-    MTL::Device* device;
-    MTL::Buffer* transformBuffer;
-    MTL::RenderPipelineState* pipelineState; // Store the pipeline state
+    MTL::Device *device;
+    MTL::Buffer *transformBuffer;
+    MTL::RenderPipelineState *pipelineState;
 
-    std::shared_ptr<Model> model; // Shared pointer to the Model
+    std::shared_ptr<Model> model;
     glm::mat4 modelMatrix;
     glm::vec3 position;
 
-    simd::float4 color; // Instance-specific color
+    simd::float4 color;
 
     void createBuffers();
 };

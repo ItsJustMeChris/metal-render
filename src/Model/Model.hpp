@@ -6,32 +6,26 @@
 #include <simd/simd.h>
 #include <iostream>
 #include "tiny_obj_loader.h"
-
-// Vertex data structure
-struct VertexData
-{
-    simd::float4 position;
-    simd::float4 color;
-    simd::float3 normal;
-} __attribute__((aligned(16)));
+#include <unordered_map>
+#include <memory>
+#include "Mesh.hpp"
 
 class Model
 {
 public:
-    Model(MTL::Device* device, const std::string& objFilePath, const simd::float4& color = {0.5f, 0.5f, 0.5f, 1.0f});
+    Model(MTL::Device* device, const std::string& objFilePath);
     ~Model();
 
-    MTL::Buffer* getVertexBuffer() const { return vertexBuffer; }
-    NS::UInteger getVertexCount() const { return vertexCount; }
+    const std::vector<std::shared_ptr<Mesh>>& getMeshes() const { return meshes; }
 
 private:
     MTL::Device* device;
-    MTL::Buffer* vertexBuffer;
-    std::vector<VertexData> vertices;
-    NS::UInteger vertexCount;
+    std::vector<std::shared_ptr<Mesh>> meshes;
 
     void loadOBJ(const std::string& filePath);
-    void calculateNormals();
-    void createBuffers();
-    simd::float4 color;
+    void calculateNormals(std::vector<VertexData>& vertices, const std::vector<uint32_t>& indices);
+
+    std::unordered_map<std::string, std::shared_ptr<Material>> materials;
+
+    std::string getBaseDir(const std::string& filepath);
 };

@@ -52,31 +52,32 @@ void Renderer::initMetal()
     metalLayer->setDevice(device);
     metalLayer->setPixelFormat(MTL::PixelFormatBGRA8Unorm);
 
-    // Create pipeline and buffers
     createRenderPipelines();
     createDepthAndMSAATextures();
 
-    // Initialize light data
     LightData lightData;
-    lightData.ambientColor = simd::float3{0.2f, 0.2f, 0.2f};
+    lightData.ambientColor = simd::float3{0.f, 0.f, 0.f};
     lightData.lightDirection = simd::float3{1.0f, 1.0f, 1.0f};
     lightData.lightColor = simd::float3{1.0f, 1.0f, 1.0f};
 
-    // Create light buffer
     lightBuffer.reset(device->newBuffer(&lightData, sizeof(LightData), MTL::ResourceStorageModeShared));
 
     renderPassDescriptor.reset(MTL::RenderPassDescriptor::alloc()->init());
 
-    // Load models
     auto teapotModel = std::make_shared<Model>(device, "bin/Release/assets/teapot.obj");
     auto cowModel = std::make_shared<Model>(device, "bin/Release/assets/cow.obj");
     auto teddyModel = std::make_shared<Model>(device, "bin/Release/assets/teddy.obj");
+    auto capsuleModel = std::make_shared<Model>(device, "bin/Release/assets/capsule/capsule.obj");
+    auto smgModel = std::make_shared<Model>(device, "bin/Release/assets/SMG/smg.obj");
+    auto backpack = std::make_shared<Model>(device, "bin/Release/assets/backpack/backpack.obj");
 
-    // Load renderables using shared models
     renderables.push_back(std::make_unique<Renderable>(device, this->engine, pipelineManager, "standard", teapotModel, glm::vec3(0.0f, 0.0f, 0.0f)));
     renderables.push_back(std::make_unique<Renderable>(device, this->engine, pipelineManager, "standard", teapotModel, glm::vec3(10.0f, 0.0f, 0.0f)));
-    renderables.push_back(std::make_unique<Renderable>(device, this->engine, pipelineManager, "debug", cowModel, glm::vec3(0.0f, 50.0f, 0.0f)));
-    renderables.push_back(std::make_unique<Renderable>(device, this->engine, pipelineManager, "debug", teddyModel, glm::vec3(50.0f, 50.0f, 0.0f)));
+    renderables.push_back(std::make_unique<Renderable>(device, this->engine, pipelineManager, "standard", capsuleModel, glm::vec3(10.0f, 10.0f, 0.0f)));
+    renderables.push_back(std::make_unique<Renderable>(device, this->engine, pipelineManager, "standard", smgModel, glm::vec3(10.0f, 10.0f, 10.0f)));
+    renderables.push_back(std::make_unique<Renderable>(device, this->engine, pipelineManager, "standard", backpack, glm::vec3(0.0f, 20.0f, 10.0f)));
+    // renderables.push_back(std::make_unique<Renderable>(device, this->engine, pipelineManager, "debug", cowModel, glm::vec3(0.0f, 50.0f, 0.0f)));
+    // renderables.push_back(std::make_unique<Renderable>(device, this->engine, pipelineManager, "debug", teddyModel, glm::vec3(50.0f, 50.0f, 0.0f)));
 
     setupEventHandlers();
 }
