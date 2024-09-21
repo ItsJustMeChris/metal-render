@@ -53,7 +53,7 @@ void Renderable::setPosition(const glm::vec3 &newPosition)
     modelMatrix = glm::translate(glm::mat4(1.0f), position);
 }
 
-std::optional<glm::vec3> Renderable::intersect(const glm::vec3 &origin, const glm::vec3 &destination)
+std::optional<glm::vec3> Renderable::Intersect(const glm::vec3 &origin, const glm::vec3 &destination)
 {
     glm::mat4 inverseModelMatrix = glm::inverse(modelMatrix);
 
@@ -63,7 +63,7 @@ std::optional<glm::vec3> Renderable::intersect(const glm::vec3 &origin, const gl
     glm::vec3 localOrigin = glm::vec3(localOrigin4);
     glm::vec3 localDestination = glm::vec3(localDestination4);
 
-    if (auto intersection = model->intersect(localOrigin, localDestination))
+    if (auto intersection = model->Intersect(localOrigin, localDestination))
     {
         glm::vec4 worldIntersection4 = modelMatrix * glm::vec4(intersection.value(), 1.0f);
         return glm::vec3(worldIntersection4);

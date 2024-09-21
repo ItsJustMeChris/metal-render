@@ -40,12 +40,12 @@ Renderer::~Renderer()
     delete pipelineManager;
 }
 
-glm::vec3 Renderer::TraceLine(const glm::vec3 &origin, const glm::vec3 &destination)
+glm::vec3 Renderer::Intersect(const glm::vec3 &origin, const glm::vec3 &destination)
 {
     // Cast a ray between the origin and destination and test if it intersects with any objects in the scene (renderables) and return the intersection point if it does
     for (const auto &renderable : renderables)
     {
-        if (auto intersection = renderable->intersect(origin, destination))
+        if (auto intersection = renderable->Intersect(origin, destination))
         {
             printf("Intersection found at (%f, %f, %f)\n", intersection.value().x, intersection.value().y, intersection.value().z);
             return intersection.value();
@@ -53,6 +53,88 @@ glm::vec3 Renderer::TraceLine(const glm::vec3 &origin, const glm::vec3 &destinat
     }
 
     return glm::vec3(0.0f, 0.0f, 0.0f);
+}
+
+glm::vec2 Renderer::WorldToScreen(const glm::vec3 &worldPosition, const glm::mat4 &projection, const glm::mat4 &view, const glm::vec4 &viewport) const
+{
+    glm::vec4 clipSpacePosition = projection * view * glm::vec4(worldPosition, 1.0f);
+
+    // Check if the point is behind the camera
+    if (clipSpacePosition.w <= 0.0f)
+    {
+        return glm::vec2(-FLT_MAX, -FLT_MAX); // Return an invalid position
+    }
+
+    glm::vec3 ndcSpacePosition = glm::vec3(clipSpacePosition) / clipSpacePosition.w;
+
+    // Convert from NDC space to window space
+    glm::vec2 windowSpacePosition;
+    windowSpacePosition.x = viewport.x + viewport.z * (ndcSpacePosition.x + 1.0f) / 2.0f;
+    windowSpacePosition.y = viewport.y + viewport.w * (1.0f - (ndcSpacePosition.y + 1.0f) / 2.0f); // Flip Y-coordinate
+
+    return windowSpacePosition;
+}
+
+glm::vec3 Renderer::ScreenToWorld(const glm::vec2 &screenPosition, const glm::mat4 &projection, const glm::mat4 &view, const glm::vec4 &viewport) const
+{
+    // Convert from window space to NDC space
+    glm::vec2 ndcSpacePosition;
+    ndcSpacePosition.x = (2.0f * screenPosition.x - viewport.z) / viewport.z;
+    ndcSpacePosition.y = (viewport.w - 2.0f * screenPosition.y) / viewport.w;
+
+    // Convert from NDC space to clip space
+    glm::vec4 clipSpacePosition;
+    clipSpacePosition.x = ndcSpacePosition.x;
+    clipSpacePosition.y = ndcSpacePosition.y;
+    clipSpacePosition.z = -1.0f;
+    clipSpacePosition.w = 1.0f;
+
+    // Convert from clip space to eye space
+    glm::mat4 inverseProjection = glm::inverse(projection);
+    glm::vec4 eyeSpacePosition = inverseProjection * clipSpacePosition;
+    eyeSpacePosition.z = -1.0f;
+    eyeSpacePosition.w = 0.0f;
+
+    // Convert from eye space to world space
+    glm::mat4 inverseView = glm::inverse(view);
+    glm::vec3 worldSpacePosition = glm::vec3(inverseView * eyeSpacePosition);
+
+    return worldSpacePosition;
+}
+
+void Renderer::ScreenPosToWorldRay(
+    const glm::vec2 &screenPos,
+    const glm::mat4 &projection,
+    const glm::mat4 &view,
+    const glm::vec4 &viewport,
+    glm::vec3 &outOrigin,
+    glm::vec3 &outDirection) const
+{
+    // Convert screen position to NDC
+    glm::vec4 ndc;
+    ndc.x = (2.0f * (screenPos.x - viewport.x)) / viewport.z - 1.0f;
+    ndc.y = 1.0f - (2.0f * (screenPos.y - viewport.y)) / viewport.w;
+    ndc.z = 1.0f; // Start with the far plane
+    ndc.w = 1.0f;
+
+    // Compute the inverse matrices
+    glm::mat4 invView = glm::inverse(view);
+    glm::mat4 invProj = glm::inverse(projection);
+
+    // Unproject the far point
+    glm::vec4 worldFar = invView * invProj * ndc;
+    worldFar /= worldFar.w;
+
+    // Set ndc.z to -1.0f for the near plane
+    ndc.z = -1.0f;
+
+    // Unproject the near point
+    glm::vec4 worldNear = invView * invProj * ndc;
+    worldNear /= worldNear.w;
+
+    // Ray origin and direction
+    outOrigin = glm::vec3(worldNear);
+    outDirection = glm::normalize(glm::vec3(worldFar - worldNear));
 }
 
 void Renderer::initMetal()

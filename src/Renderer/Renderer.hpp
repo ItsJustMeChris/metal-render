@@ -38,7 +38,10 @@ public:
 
     Renderable *sunRenderable = nullptr;
 
-    glm::vec3 TraceLine(const glm::vec3 &origin, const glm::vec3 &destination);
+    glm::vec3 Intersect(const glm::vec3 &origin, const glm::vec3 &destination);
+    glm::vec2 WorldToScreen(const glm::vec3 &worldPosition, const glm::mat4 &projection, const glm::mat4 &view, const glm::vec4 &viewport) const;
+    glm::vec3 ScreenToWorld(const glm::vec2 &screenPosition, const glm::mat4 &projection, const glm::mat4 &view, const glm::vec4 &viewport) const;
+    void ScreenPosToWorldRay(const glm::vec2 &screenPos, const glm::mat4 &projection, const glm::mat4 &view, const glm::vec4 &viewport, glm::vec3 &outOrigin, glm::vec3 &outDirection) const;
 
 private:
     void initMetal();

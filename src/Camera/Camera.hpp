@@ -57,7 +57,6 @@ public:
     const glm::vec3 &GetUp() const { return Up; }
     const glm::vec3 &GetRight() const { return Right; }
 
-    glm::vec2 WorldToScreen(const glm::vec3 &worldPosition, const glm::mat4 &projection, const glm::mat4 &view, const glm::vec4 &viewport) const;
     const void Teleport(const glm::vec3 &position) { Position = position; }
     void LookAt(const glm::vec3 &targetPosition);
 

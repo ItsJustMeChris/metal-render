@@ -225,7 +225,7 @@ bool Model::rayIntersectsTriangle(const glm::vec3 &orig, const glm::vec3 &dir,
     return false;
 }
 
-std::optional<glm::vec3> Model::intersect(const glm::vec3 &origin, const glm::vec3 &destination)
+std::optional<glm::vec3> Model::Intersect(const glm::vec3 &origin, const glm::vec3 &destination)
 {
     glm::vec3 direction = glm::normalize(destination - origin);
     float maxDistance = glm::length(destination - origin);

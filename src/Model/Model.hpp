@@ -19,7 +19,7 @@ public:
 
     const std::vector<std::shared_ptr<Mesh>> &getMeshes() const { return meshes; }
 
-    std::optional<glm::vec3> intersect(const glm::vec3 &origin, const glm::vec3 &destination);
+    std::optional<glm::vec3> Intersect(const glm::vec3 &origin, const glm::vec3 &destination);
 
 private:
     MTL::Device *device;

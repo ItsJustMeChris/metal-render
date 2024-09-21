@@ -90,7 +90,7 @@ void ImGuiHandler::drawInterface()
             {
                 glm::vec4 viewport = engine->getRenderer()->viewport();
 
-                glm::vec2 screenPos = camera->WorldToScreen(
+                glm::vec2 screenPos = engine->getRenderer()->WorldToScreen(
                     renderable->getPosition(),
                     camera->GetProjectionMatrix(aspectRatio),
                     camera->GetViewMatrix(),
@@ -174,6 +174,7 @@ void ImGuiHandler::drawInterface()
     }
 
     {
+        glm::vec4 viewport = engine->getRenderer()->viewport();
         ImGui::Begin("Ray Tracing");
 
         Start = camera->GetPosition();
@@ -181,26 +182,25 @@ void ImGuiHandler::drawInterface()
 
         ImGui::Text("Start: (%.2f, %.2f, %.2f)", Start.x, Start.y, Start.z);
 
-        intersection = engine->getRenderer()->TraceLine(Start, End);
+        intersection = engine->getRenderer()->Intersect(Start, End);
 
         ImGui::Text("Intersection: (%.2f, %.2f, %.2f)", intersection.x, intersection.y, intersection.z);
 
         if (intersection.x != 0)
         {
-            glm::vec4 viewport = engine->getRenderer()->viewport();
-            glm::vec2 screenPosStart = camera->WorldToScreen(
+            glm::vec2 screenPosStart = engine->getRenderer()->WorldToScreen(
                 Start,
                 camera->GetProjectionMatrix(aspectRatio),
                 camera->GetViewMatrix(),
                 viewport);
 
-            glm::vec2 screenPosEnd = camera->WorldToScreen(
+            glm::vec2 screenPosEnd = engine->getRenderer()->WorldToScreen(
                 End,
                 camera->GetProjectionMatrix(aspectRatio),
                 camera->GetViewMatrix(),
                 viewport);
 
-            glm::vec2 screenPosIntersection = camera->WorldToScreen(
+            glm::vec2 screenPosIntersection = engine->getRenderer()->WorldToScreen(
                 intersection,
                 camera->GetProjectionMatrix(aspectRatio),
                 camera->GetViewMatrix(),
@@ -216,6 +216,26 @@ void ImGuiHandler::drawInterface()
             drawList->AddText(ImVec2(screenPosIntersection.x, screenPosIntersection.y),
                               IM_COL32(255, 255, 255, 255),
                               "Intersection");
+
+            // camera->screentoworld (cursor)
+        }
+
+        glm::vec2 cursorPos = {io.MousePos.x, io.MousePos.y};
+        cursorPos *= dpiScaleFactor;
+
+        glm::vec3 rayOrigin, rayDirection;
+        engine->getRenderer()->ScreenPosToWorldRay(cursorPos, camera->GetProjectionMatrix(aspectRatio), camera->GetViewMatrix(), viewport, rayOrigin, rayDirection);
+
+        glm::vec3 rayEnd = rayOrigin + rayDirection * 100.0f;
+
+        glm::vec3 rayIntersection = engine->getRenderer()->Intersect(rayOrigin, rayEnd);
+
+        if (rayIntersection.x != 0)
+        {
+            ImGui::Text("Ray Origin: (%.2f, %.2f, %.2f)", rayOrigin.x, rayOrigin.y, rayOrigin.z);
+            ImGui::Text("Ray Intersection: (%.2f, %.2f, %.2f)", rayIntersection.x, rayIntersection.y, rayIntersection.z);
+
+            drawList->AddCircleFilled(ImVec2(cursorPos.x / dpiScaleFactor, cursorPos.y / dpiScaleFactor), 5.0f, IM_COL32(255, 255, 255, 255));
         }
 
         ImGui::End();

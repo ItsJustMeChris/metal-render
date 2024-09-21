@@ -60,26 +60,6 @@ void Camera::updateCameraVectors()
     Up = glm::normalize(glm::cross(Right, Front));
 }
 
-glm::vec2 Camera::WorldToScreen(const glm::vec3 &worldPosition, const glm::mat4 &projection, const glm::mat4 &view, const glm::vec4 &viewport) const
-{
-    glm::vec4 clipSpacePosition = projection * view * glm::vec4(worldPosition, 1.0f);
-
-    // Check if the point is behind the camera
-    if (clipSpacePosition.w <= 0.0f)
-    {
-        return glm::vec2(-FLT_MAX, -FLT_MAX); // Return an invalid position
-    }
-
-    glm::vec3 ndcSpacePosition = glm::vec3(clipSpacePosition) / clipSpacePosition.w;
-
-    // Convert from NDC space to window space
-    glm::vec2 windowSpacePosition;
-    windowSpacePosition.x = viewport.x + viewport.z * (ndcSpacePosition.x + 1.0f) / 2.0f;
-    windowSpacePosition.y = viewport.y + viewport.w * (1.0f - (ndcSpacePosition.y + 1.0f) / 2.0f); // Flip Y-coordinate
-
-    return windowSpacePosition;
-}
-
 void Camera::LookAt(const glm::vec3 &targetPosition)
 {
     glm::vec3 direction = glm::normalize(targetPosition - Position);
